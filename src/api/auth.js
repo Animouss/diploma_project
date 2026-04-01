@@ -36,6 +36,14 @@ const DEMO_USERS = {
     }
 };
 
+const authHeader = (token) => ({ Authorization: `Token ${token}` });
+
+const mapBackendUser = (user) => ({
+    ...user,
+    fullName: user.fullName || user.full_name || user.username,
+    level: user.level || '—'
+});
+
 const loginByApi = async (login, password) => {
     const payload = await request('/auth/login/', {
         method: 'POST',
@@ -43,8 +51,8 @@ const loginByApi = async (login, password) => {
     });
 
     return {
-        token: payload.access || payload.token,
-        user: payload.user
+        token: payload.token || payload.access,
+        user: mapBackendUser(payload.user)
     };
 };
 
@@ -80,10 +88,19 @@ export const getCurrentUserRequest = async (token) => {
     }
 
     const payload = await request('/auth/me/', {
-        headers: {
-            Authorization: `Bearer ${token}`
-        }
+        headers: authHeader(token)
     });
 
-    return payload?.user || payload;
+    return mapBackendUser(payload?.user || payload);
+};
+
+export const logoutRequest = async (token) => {
+    if (!token || token.startsWith('demo-token-')) {
+        return;
+    }
+
+    await request('/auth/logout/', {
+        method: 'POST',
+        headers: authHeader(token)
+    });
 };

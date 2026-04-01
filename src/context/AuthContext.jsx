@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { getCurrentUserRequest, loginRequest } from '../api/auth';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { getCurrentUserRequest, loginRequest, logoutRequest } from '../api/auth';
 import { AuthContext } from './auth-context';
 
 const TOKEN_STORAGE_KEY = 'diploma_auth_token';
@@ -38,21 +38,30 @@ export const AuthProvider = ({ children }) => {
         bootstrap();
     }, [token]);
 
-    const login = async (loginValue, password) => {
+    const login = useCallback(async (loginValue, password) => {
         const authData = await loginRequest(loginValue, password);
         setToken(authData.token);
         setUser(authData.user);
         localStorage.setItem(TOKEN_STORAGE_KEY, authData.token);
         localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(authData.user));
         return authData;
-    };
+    }, []);
 
-    const logout = () => {
+    const logout = useCallback(async () => {
+        const currentToken = token;
         localStorage.removeItem(TOKEN_STORAGE_KEY);
         localStorage.removeItem(USER_STORAGE_KEY);
         setToken(null);
         setUser(null);
-    };
+
+        if (currentToken) {
+            try {
+                await logoutRequest(currentToken);
+            } catch {
+                // ignore network/logout errors in client cleanup flow
+            }
+        }
+    }, [token]);
 
     const value = useMemo(
         () => ({
@@ -63,7 +72,7 @@ export const AuthProvider = ({ children }) => {
             login,
             logout
         }),
-        [user, token, loading]
+        [user, token, loading, login, logout]
     );
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

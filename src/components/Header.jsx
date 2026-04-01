@@ -6,8 +6,8 @@ const Header = () => {
     const navigate = useNavigate();
     const { logout } = useAuth();
 
-    const handleLogout = () => {
-        logout();
+    const handleLogout = async () => {
+        await logout();
         navigate('/login');
     };
 
@@ -16,6 +16,12 @@ const Header = () => {
             <div className="header__title">Система тестирования по русскому языку</div>
 
             <div className="header__right">
+                <input
+                    className="header__search"
+                    type="text"
+                    placeholder="Поиск..."
+                />
+                <button className="header__button">Выйти</button>
                 <input className="header__search" type="text" placeholder="Поиск..." />
                 <button className="header__button" onClick={handleLogout}>Выйти</button>
             </div>
