@@ -72,7 +72,11 @@ const loginByDemo = (login, password) => {
 export const loginRequest = async (login, password) => {
     try {
         return await loginByApi(login, password);
-    } catch {
+    } catch (error) {
+        if (error?.status) {
+            throw error;
+        }
+
         return loginByDemo(login, password);
     }
 };

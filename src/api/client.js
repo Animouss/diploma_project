@@ -23,7 +23,11 @@ export const request = async (path, options = {}) => {
     let payload = null;
     const text = await response.text();
     if (text) {
-        payload = JSON.parse(text);
+        try {
+            payload = JSON.parse(text);
+        } catch {
+            payload = { detail: text };
+        }
     }
 
     if (!response.ok) {
