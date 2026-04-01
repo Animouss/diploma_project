@@ -1,0 +1,108 @@
+You are working inside the repository for the diploma project
+"Разработка информационной системы языкового тестирования иностранных студентов".
+
+Read these files first and follow them strictly:
+- `AGENTS.md`
+- `docs/codex/01_project_context.md`
+- `docs/codex/02_repo_map.md`
+- `docs/codex/03_gap_analysis.md`
+- `docs/codex/04_target_architecture.md`
+- `docs/codex/05_runbook_environment.md`
+- `docs/codex/06_acceptance_checklist.md`
+
+## Mission
+Continue the existing project and turn it into a working MVP of a specialized language-testing information system for foreign students.
+
+## Critical instruction
+This repository ALREADY contains a frontend.
+Do NOT rebuild the frontend from scratch.
+Do NOT replace the current stack with another frontend framework.
+Do NOT radically redesign the UI.
+
+Preserve:
+- current React structure
+- current routing approach
+- current CSS visual style
+- current dark sidebar / white content / indigo accent design language
+
+Keep Vite.
+Treat it as the existing frontend toolchain, not as a problem to solve.
+
+## What you must inspect first
+1. Inspect the current repository.
+2. Confirm the real existing pages/components/files.
+3. Identify technical inconsistencies that can break cloud/Linux runs.
+4. Compare the current implementation with the diploma requirements.
+
+## Known current reality
+The frontend already has:
+- routing
+- layout
+- login page
+- dashboard
+- tests page
+- test runner page
+- results page
+- admin panel
+
+But many parts are mock/demo only and need real product logic.
+
+## Main product requirements to move toward
+- authentication
+- role-based access (student / teacher / admin)
+- test management
+- question management
+- group assignment
+- student test taking
+- timer and answer saving
+- automatic scoring of closed questions
+- result history
+- teacher/admin result views
+- backend API using Django + DRF
+- PostgreSQL-targeted persistence
+
+## Work style
+Make progress in the most practical order:
+1. preserve and stabilize current frontend
+2. fix structural issues
+3. introduce shared frontend API/auth layers
+4. if backend is absent, scaffold Django + DRF under `/backend`
+5. connect frontend pages to real API step by step
+6. replace mocks incrementally
+
+## Design rule
+Do not significantly change the visual design.
+You may improve spacing, consistency, and UX details, but preserve the current style.
+
+## First-run priorities
+During this run, do ALL of the following:
+1. Inspect and summarize the current repository structure.
+2. List the biggest gaps against the diploma requirements.
+3. Fix any obvious blocking technical issue you find first.
+4. Implement the first meaningful slice of real product functionality.
+5. Run checks/builds.
+6. Summarize what changed and what remains.
+
+## High-priority issues to verify early
+- route/import consistency
+- Linux/cloud-safe file path casing
+- login flow currently mocked
+- page data currently hardcoded
+- no shared API layer
+- backend may be absent
+
+## Constraints
+- no proctoring
+- no full LMS features
+- no unnecessary rewrites
+- no replacing CSS with a large new UI system
+- no removing Vite unless absolutely necessary
+
+## Definition of success for this run
+This run is successful only if you:
+- analyze the CURRENT repository accurately,
+- preserve the existing frontend and style,
+- make real code changes,
+- and move the project closer to the diploma MVP rather than only writing notes.
+
+Start now.
