@@ -1,17 +1,33 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
+import { useAuth } from '../context/auth-context';
+
+const roleLabels = {
+    student: 'Студент',
+    teacher: 'Преподаватель',
+    admin: 'Администратор'
+};
 
 const Sidebar = () => {
+    const { user } = useAuth();
+
+    const initials = user?.fullName
+        ?.split(' ')
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((part) => part[0])
+        .join('') || '??';
+
     return (
         <aside className="sidebar">
             <div className="sidebar__profile">
                 <div className="sidebar__avatar">
-                    <span>АК</span>
+                    <span>{initials.toUpperCase()}</span>
                 </div>
                 <div>
-                    <div className="sidebar__name">Казабеев Андрей</div>
-                    <div className="sidebar__role">Администратор</div>
-                    <div className="sidebar__level">Уровень: C2</div>
+                    <div className="sidebar__name">{user?.fullName || 'Пользователь'}</div>
+                    <div className="sidebar__role">{roleLabels[user?.role] || 'Роль не указана'}</div>
+                    <div className="sidebar__level">Уровень: {user?.level || '—'}</div>
                 </div>
             </div>
 
@@ -44,14 +60,16 @@ const Sidebar = () => {
                     📊 Результаты
                 </NavLink>
 
-                <NavLink
-                    to="/admin"
-                    className={({ isActive }) =>
-                        'sidebar__link' + (isActive ? ' sidebar__link--active' : '')
-                    }
-                >
-                    ⚙️ Админ-панель
-                </NavLink>
+                {user?.role === 'admin' && (
+                    <NavLink
+                        to="/admin"
+                        className={({ isActive }) =>
+                            'sidebar__link' + (isActive ? ' sidebar__link--active' : '')
+                        }
+                    >
+                        ⚙️ Админ-панель
+                    </NavLink>
+                )}
             </nav>
         </aside>
     );
