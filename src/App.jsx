@@ -1,18 +1,29 @@
-import React from "react";
-import { Routes, Route, Navigate } from "react-router-dom";
-import Layout from "./components/Layout";
-import Login from "./pages/Login";
+import React from 'react';
+import { Navigate, Route, Routes } from 'react-router-dom';
+import Layout from './components/Layout';
+import Login from './pages/login';
+import ProtectedRoute from './components/ProtectedRoute';
+import { useAuth } from './context/auth-context';
 
 function App() {
+    const { isAuthenticated } = useAuth();
+
     return (
         <Routes>
-            {/* Страница входа без сайдбара */}
-            <Route path="/login" element={<Login />} />
+            <Route
+                path="/login"
+                element={isAuthenticated ? <Navigate to="/" replace /> : <Login />}
+            />
 
-            {/* Все основные страницы внутри Layout (с сайдбаром и хедером) */}
-            <Route path="/*" element={<Layout />} />
+            <Route
+                path="/*"
+                element={
+                    <ProtectedRoute>
+                        <Layout />
+                    </ProtectedRoute>
+                }
+            />
 
-            {/* На всякий случай: всё неизвестное отправляем на /login */}
             <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
     );
