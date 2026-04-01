@@ -1,8 +1,9 @@
 from django.contrib import admin
 
-from testing.models import Answer, AnswerOption, Attempt, Question, Result, Test, TestAssignment
+from testing.models import Answer, AnswerOption, Attempt, Question, ReadingPassage, Result, Test, TestAssignment
 
 admin.site.register(Test)
+admin.site.register(ReadingPassage)
 admin.site.register(Question)
 admin.site.register(AnswerOption)
 admin.site.register(TestAssignment)

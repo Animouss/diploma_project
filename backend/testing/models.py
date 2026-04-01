@@ -13,11 +13,26 @@ class Test(models.Model):
         return self.title
 
 
+class ReadingPassage(models.Model):
+    test = models.ForeignKey(Test, on_delete=models.CASCADE, related_name='passages')
+    title = models.CharField(max_length=255, blank=True)
+    content = models.TextField()
+    order = models.PositiveIntegerField(default=1)
+
+    class Meta:
+        ordering = ['order']
+
+    def __str__(self):
+        return self.title or f'Текст #{self.id}'
+
+
 class Question(models.Model):
     class QuestionType(models.TextChoices):
         SINGLE_CHOICE = 'single_choice', 'Один вариант'
+        READING_SINGLE_CHOICE = 'reading_single_choice', 'Чтение + один вариант'
 
     test = models.ForeignKey(Test, on_delete=models.CASCADE, related_name='questions')
+    passage = models.ForeignKey(ReadingPassage, on_delete=models.SET_NULL, null=True, blank=True, related_name='questions')
     question_type = models.CharField(max_length=40, choices=QuestionType.choices, default=QuestionType.SINGLE_CHOICE)
     text = models.TextField()
     order = models.PositiveIntegerField(default=1)
