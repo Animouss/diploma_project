@@ -21,3 +21,8 @@ export const getResultsOverviewRequest = (token, filters = {}) => {
         headers: authHeaders(token)
     });
 };
+
+export const getResultDetailRequest = (token, resultId) =>
+    request(`/results/${resultId}/`, {
+        headers: authHeaders(token)
+    });

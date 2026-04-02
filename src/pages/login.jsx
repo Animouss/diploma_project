@@ -20,7 +20,8 @@ const Login = () => {
             await login(loginValue.trim(), password.trim());
             navigate('/');
         } catch (err) {
-            setError(err.message || 'Ошибка входа. Проверьте данные.');
+            const message = err?.message || 'Ошибка входа. Проверьте данные.';
+            setError(message);
         } finally {
             setIsLoading(false);
         }

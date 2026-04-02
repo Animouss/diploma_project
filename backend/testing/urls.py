@@ -14,6 +14,7 @@ from testing.views import (
     AttemptSummaryView,
     FinishAttemptView,
     MyResultsView,
+    ResultDetailView,
     ResultsOverviewView,
     SaveAttemptAnswerView,
     StartAttemptView,
@@ -37,6 +38,7 @@ attempt_urlpatterns = [
 result_urlpatterns = [
     path('me/', MyResultsView.as_view(), name='results-me'),
     path('overview/', ResultsOverviewView.as_view(), name='results-overview'),
+    path('<int:pk>/', ResultDetailView.as_view(), name='results-detail'),
 ]
 
 admin_urlpatterns = [

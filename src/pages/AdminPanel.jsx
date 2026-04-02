@@ -51,7 +51,8 @@ const AdminPanel = () => {
     };
 
     const showError = (err) => {
-        setError(err?.message || 'Ошибка запроса');
+        const backendDetail = err?.message || err?.detail;
+        setError(backendDetail || 'Ошибка запроса');
         setMessage('');
     };
 
@@ -132,6 +133,11 @@ const AdminPanel = () => {
         e.preventDefault();
         if (!newUser.username || !newUser.password || !newUser.full_name) {
             setError('Заполните обязательные поля пользователя.');
+            return;
+        }
+
+        if (newUser.password.length < 6) {
+            setError('Пароль должен содержать минимум 6 символов.');
             return;
         }
 
@@ -311,8 +317,8 @@ const AdminPanel = () => {
 
                     <div className="admin-table-wrapper">
                         <table className="table admin-table">
-                            <thead><tr><th>Тест</th><th>Уровень</th><th>Публикация</th></tr></thead>
-                            <tbody>{tests.map((t) => (<tr key={t.id}><td><button className="btn-secondary" type="button" onClick={() => setSelectedTestId(String(t.id))}>{t.title}</button></td><td>{t.level}</td><td><input type="checkbox" checked={t.is_published} onChange={(e) => handleTestPublishToggle(t.id, e.target.checked)} /></td></tr>))}</tbody>
+                            <thead><tr><th>Тест</th><th>Уровень</th><th>Публикация</th><th>Видимость для студента</th></tr></thead>
+                            <tbody>{tests.map((t) => (<tr key={t.id}><td><button className="btn-secondary" type="button" onClick={() => setSelectedTestId(String(t.id))}>{t.title}</button></td><td>{t.level}</td><td><input type="checkbox" checked={t.is_published} onChange={(e) => handleTestPublishToggle(t.id, e.target.checked)} /></td><td>{t.is_published ? 'Доступен (при назначении)' : 'Скрыт от студентов'}</td></tr>))}</tbody>
                         </table>
                     </div>
                 </div>

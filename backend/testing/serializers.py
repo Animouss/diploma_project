@@ -173,3 +173,52 @@ class AssignmentSerializer(serializers.ModelSerializer):
 class AssignmentBulkCreateSerializer(serializers.Serializer):
     test_id = serializers.IntegerField()
     group_ids = serializers.ListField(child=serializers.IntegerField(), allow_empty=False)
+
+
+class ResultQuestionReviewSerializer(serializers.Serializer):
+    question_id = serializers.IntegerField()
+    question_text = serializers.CharField()
+    question_type = serializers.CharField()
+    selected_option_id = serializers.IntegerField(allow_null=True)
+    selected_option_text = serializers.CharField(allow_null=True)
+    correct_option_id = serializers.IntegerField(allow_null=True)
+    correct_option_text = serializers.CharField(allow_null=True)
+    is_correct = serializers.BooleanField()
+
+
+class ResultDetailSerializer(serializers.ModelSerializer):
+    test_title = serializers.CharField(source='attempt.test.title', read_only=True)
+    student_name = serializers.CharField(source='attempt.user.full_name', read_only=True)
+    questions = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Result
+        fields = (
+            'id',
+            'test_title',
+            'student_name',
+            'score_percent',
+            'level_result',
+            'passed',
+            'created_at',
+            'questions',
+        )
+
+    def get_questions(self, obj):
+        attempt = obj.attempt
+        answers_map = {a.question_id: a.selected_option for a in attempt.answers.select_related('selected_option')}
+        rows = []
+        for question in attempt.test.questions.prefetch_related('options').all():
+            selected = answers_map.get(question.id)
+            correct = question.options.filter(is_correct=True).first()
+            rows.append({
+                'question_id': question.id,
+                'question_text': question.text,
+                'question_type': question.question_type,
+                'selected_option_id': selected.id if selected else None,
+                'selected_option_text': selected.text if selected else None,
+                'correct_option_id': correct.id if correct else None,
+                'correct_option_text': correct.text if correct else None,
+                'is_correct': bool(selected and correct and selected.id == correct.id),
+            })
+        return ResultQuestionReviewSerializer(rows, many=True).data

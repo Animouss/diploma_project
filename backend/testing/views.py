@@ -19,6 +19,7 @@ from testing.serializers import (
     AttemptSummarySerializer,
     SaveAnswerSerializer,
     StudentResultSerializer,
+    ResultDetailSerializer,
     TestDetailSerializer,
     TestListSerializer,
 )
@@ -238,6 +239,20 @@ class MyResultsView(ListAPIView):
             attempt__user=self.request.user,
             attempt__status=Attempt.AttemptStatus.FINISHED,
         ).order_by('-created_at')
+
+
+
+
+class ResultDetailView(RetrieveAPIView):
+    serializer_class = ResultDetailSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    queryset = Result.objects.select_related('attempt__test', 'attempt__user').prefetch_related('attempt__answers__selected_option', 'attempt__test__questions__options')
+
+    def get_object(self):
+        result = super().get_object()
+        if self.request.user.role == User.Role.STUDENT and result.attempt.user_id != self.request.user.id:
+            self.permission_denied(self.request, message='Нет доступа к результату.')
+        return result
 
 
 class ResultsOverviewView(ListAPIView):
