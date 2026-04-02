@@ -1,40 +1,30 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/auth-context';
-import { getTestDetailRequest } from '../api/tests';
+import {
+    finishAttemptRequest,
+    saveAttemptAnswerRequest,
+    startAttemptRequest,
+} from '../api/attempts';
 
-const demoTestsById = {
-    1: {
-        id: 1,
-        title: 'Лексика и грамматика (демо)',
-        durationMinutes: 10,
-        questions: [
-            {
-                id: 1,
-                questionType: 'single_choice',
-                text: 'Выберите правильный вариант: Он ___ в университет каждое утро.',
-                passageText: '',
-                options: [
-                    { id: 11, text: 'ходит' },
-                    { id: 12, text: 'ездит' },
-                    { id: 13, text: 'идёт' },
-                    { id: 14, text: 'приходит' }
-                ]
-            },
-            {
-                id: 2,
-                questionType: 'reading_single_choice',
-                text: 'Какова основная мысль текста?',
-                passageText: 'Студенты подготовительного факультета изучают русский язык ежедневно. В программу входят лексика, грамматика и практика чтения научных текстов.',
-                options: [
-                    { id: 21, text: 'Студенты изучают только разговорную речь.' },
-                    { id: 22, text: 'Программа включает комплексное языковое обучение.' },
-                    { id: 23, text: 'На факультете нет практики чтения.' },
-                    { id: 24, text: 'Изучается только грамматика.' }
-                ]
-            }
-        ]
-    }
+const demoTest = {
+    id: 1,
+    title: 'Лексика и грамматика (демо)',
+    durationMinutes: 10,
+    questions: [
+        {
+            id: 1,
+            questionType: 'single_choice',
+            text: 'Выберите правильный вариант: Он ___ в университет каждое утро.',
+            passageText: '',
+            options: [
+                { id: 11, text: 'ходит' },
+                { id: 12, text: 'ездит' },
+                { id: 13, text: 'идёт' },
+                { id: 14, text: 'приходит' }
+            ]
+        }
+    ]
 };
 
 const TestRunner = () => {
@@ -42,6 +32,7 @@ const TestRunner = () => {
     const navigate = useNavigate();
     const { token } = useAuth();
 
+    const [attemptId, setAttemptId] = useState(null);
     const [test, setTest] = useState(null);
     const [loading, setLoading] = useState(true);
     const [loadError, setLoadError] = useState('');
@@ -49,13 +40,20 @@ const TestRunner = () => {
     const [answers, setAnswers] = useState({});
     const [secondsLeft, setSecondsLeft] = useState(0);
     const [isFinished, setIsFinished] = useState(false);
+    const [resultSummary, setResultSummary] = useState(null);
+    const [finishError, setFinishError] = useState('');
+    const finishingRef = useRef(false);
 
     useEffect(() => {
-        const loadTest = async () => {
+        const bootstrap = async () => {
             setLoading(true);
             setLoadError('');
-
-            const demoTest = demoTestsById[id] || demoTestsById[1];
+            setFinishError('');
+            setCurrentIndex(0);
+            setAnswers({});
+            setIsFinished(false);
+            setResultSummary(null);
+            setAttemptId(null);
 
             if (!token || token.startsWith('demo-token-')) {
                 setTest(demoTest);
@@ -65,20 +63,43 @@ const TestRunner = () => {
             }
 
             try {
-                const apiTest = await getTestDetailRequest(token, id);
-                setTest(apiTest);
-                setSecondsLeft((apiTest.durationMinutes || 10) * 60);
-            } catch {
-                setTest(demoTest);
-                setSecondsLeft((demoTest.durationMinutes || 10) * 60);
-                setLoadError('Не удалось загрузить тест с сервера. Показана демо-версия.');
+                const attempt = await startAttemptRequest(token, id);
+                setAttemptId(attempt.attemptId);
+                setTest(attempt.test);
+                setSecondsLeft(attempt.remainingSeconds || (attempt.test.durationMinutes || 10) * 60);
+            } catch (err) {
+                setLoadError(err.message || 'Не удалось запустить попытку.');
             } finally {
                 setLoading(false);
             }
         };
 
-        loadTest();
+        bootstrap();
     }, [id, token]);
+
+    const handleFinishAttempt = useCallback(async () => {
+        if (finishingRef.current || isFinished) {
+            return;
+        }
+
+        finishingRef.current = true;
+
+        if (!token || token.startsWith('demo-token-') || !attemptId) {
+            setIsFinished(true);
+            finishingRef.current = false;
+            return;
+        }
+
+        try {
+            const summary = await finishAttemptRequest(token, attemptId);
+            setResultSummary(summary.result);
+            setIsFinished(true);
+        } catch (err) {
+            setFinishError(err.message || 'Не удалось завершить попытку.');
+        } finally {
+            finishingRef.current = false;
+        }
+    }, [attemptId, isFinished, token]);
 
     useEffect(() => {
         if (loading || isFinished || !test) {
@@ -89,19 +110,18 @@ const TestRunner = () => {
             setSecondsLeft((prev) => {
                 if (prev <= 1) {
                     clearInterval(timer);
-                    setIsFinished(true);
+                    handleFinishAttempt();
                     return 0;
                 }
+
                 return prev - 1;
             });
         }, 1000);
 
         return () => clearInterval(timer);
-    }, [loading, isFinished, test]);
+    }, [loading, isFinished, test, handleFinishAttempt]);
 
-    const handleExit = () => {
-        navigate('/tests');
-    };
+    const handleExit = () => navigate('/tests');
 
     const formatTime = (totalSeconds) => {
         const m = Math.floor(totalSeconds / 60);
@@ -109,10 +129,7 @@ const TestRunner = () => {
         return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
     };
 
-    const currentQuestion = useMemo(
-        () => test?.questions?.[currentIndex] || null,
-        [test, currentIndex]
-    );
+    const currentQuestion = useMemo(() => test?.questions?.[currentIndex] || null, [test, currentIndex]);
 
     const progressPercent = useMemo(() => {
         if (!test?.questions?.length) {
@@ -122,15 +139,23 @@ const TestRunner = () => {
         return Math.round(((currentIndex + 1) / test.questions.length) * 100);
     }, [test, currentIndex]);
 
-    const handleSelectOption = (optionId) => {
+    const handleSelectOption = async (optionId) => {
         if (!currentQuestion) {
             return;
         }
 
         setAnswers((prev) => ({
             ...prev,
-            [currentQuestion.id]: optionId
+            [currentQuestion.id]: optionId,
         }));
+
+        if (token && !token.startsWith('demo-token-') && attemptId) {
+            try {
+                await saveAttemptAnswerRequest(token, attemptId, currentQuestion.id, optionId);
+            } catch (err) {
+                setFinishError(err.message || 'Не удалось сохранить ответ.');
+            }
+        }
     };
 
     const handleNext = () => {
@@ -141,7 +166,7 @@ const TestRunner = () => {
         if (currentIndex < test.questions.length - 1) {
             setCurrentIndex((prev) => prev + 1);
         } else {
-            setIsFinished(true);
+            handleFinishAttempt();
         }
     };
 
@@ -155,11 +180,23 @@ const TestRunner = () => {
         return <div className="page">Загрузка теста...</div>;
     }
 
+    if (loadError) {
+        return (
+            <div className="page">
+                <h1 className="page__title">Тест недоступен</h1>
+                <p className="page__subtitle">{loadError}</p>
+                <button className="btn-primary" onClick={handleExit} type="button">
+                    Вернуться к списку тестов
+                </button>
+            </div>
+        );
+    }
+
     if (!test || !test.questions?.length) {
         return (
             <div className="page">
                 <h1 className="page__title">Тест недоступен</h1>
-                <p className="page__subtitle">Не удалось получить структуру теста.</p>
+                <p className="page__subtitle">В тесте пока нет вопросов.</p>
                 <button className="btn-primary" onClick={handleExit} type="button">
                     Вернуться к списку тестов
                 </button>
@@ -173,7 +210,7 @@ const TestRunner = () => {
             <p className="page__subtitle">
                 Вопрос {currentIndex + 1} из {test.questions.length}
             </p>
-            {loadError && <p className="page__hint">{loadError}</p>}
+            {finishError && <p className="page__hint">{finishError}</p>}
 
             <div className="test-panel">
                 <div className="test-panel__timer">⏱ Время: {formatTime(secondsLeft)}</div>
@@ -200,9 +237,7 @@ const TestRunner = () => {
                                     key={option.id}
                                     className={
                                         'test-option' +
-                                        (answers[currentQuestion.id] === option.id
-                                            ? ' test-option--selected'
-                                            : '')
+                                        (answers[currentQuestion.id] === option.id ? ' test-option--selected' : '')
                                     }
                                 >
                                     <input
@@ -241,10 +276,16 @@ const TestRunner = () => {
             ) : (
                 <div className="test-result">
                     <h2 className="test-result__title">Тест завершён</h2>
-                    <p className="test-result__text">
-                        Ответы сохранены локально в текущей MVP-версии. Подсчёт результатов будет
-                        подключён после реализации attempt/result API.
-                    </p>
+                    {resultSummary ? (
+                        <p className="test-result__text">
+                            Результат: {resultSummary.score_percent}% · Уровень: {resultSummary.level_result} ·{' '}
+                            {resultSummary.passed ? 'Зачёт' : 'Незачёт'}.
+                        </p>
+                    ) : (
+                        <p className="test-result__text">
+                            Ответы сохранены в демо-режиме. Для реального подсчёта завершите попытку через backend.
+                        </p>
+                    )}
 
                     <button className="btn-primary" onClick={handleExit} type="button">
                         Вернуться к списку тестов

@@ -1,16 +1,24 @@
+from decimal import Decimal
+
+from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from rest_framework import permissions, status
 from rest_framework.generics import ListAPIView, ListCreateAPIView, RetrieveAPIView, RetrieveUpdateDestroyAPIView
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from academics.models import StudentGroup
-from testing.models import AnswerOption, Question, Test, TestAssignment
+from testing.models import Answer, AnswerOption, Attempt, Question, Result, Test, TestAssignment
 from testing.serializers import (
     AdminOptionSerializer,
     AdminQuestionSerializer,
     AdminTestSerializer,
     AssignmentBulkCreateSerializer,
     AssignmentSerializer,
+    AttemptExecutionSerializer,
+    AttemptSummarySerializer,
+    SaveAnswerSerializer,
+    StudentResultSerializer,
     TestDetailSerializer,
     TestListSerializer,
 )
@@ -20,6 +28,15 @@ from users.models import User
 class IsAdminRole(permissions.BasePermission):
     def has_permission(self, request, view):
         return bool(request.user and request.user.is_authenticated and request.user.role == User.Role.ADMIN)
+
+
+class IsTeacherOrAdmin(permissions.BasePermission):
+    def has_permission(self, request, view):
+        return bool(
+            request.user
+            and request.user.is_authenticated
+            and request.user.role in (User.Role.TEACHER, User.Role.ADMIN)
+        )
 
 
 class TestAccessMixin:
@@ -32,6 +49,13 @@ class TestAccessMixin:
             return test.assignments.filter(group_id=user.student_group_id).exists()
 
         return False
+
+    @staticmethod
+    def get_student_available_tests(user):
+        return Test.objects.filter(
+            is_published=True,
+            assignments__group_id=user.student_group_id,
+        ).distinct()
 
 
 class TestListView(ListAPIView):
@@ -64,6 +88,183 @@ class TestDetailView(TestAccessMixin, RetrieveAPIView):
         return test
 
 
+class StartAttemptView(TestAccessMixin, APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, test_id):
+        user = request.user
+        test = get_object_or_404(Test, id=test_id, is_published=True)
+
+        if user.role == User.Role.STUDENT:
+            if not user.student_group_id:
+                self.permission_denied(request, message='У студента не назначена группа.')
+            if not self.get_student_available_tests(user).filter(id=test_id).exists():
+                self.permission_denied(request, message='Тест не назначен вашей группе.')
+
+        attempt = Attempt.objects.filter(user=user, test=test, status=Attempt.AttemptStatus.IN_PROGRESS).first()
+        if not attempt:
+            attempt = Attempt.objects.create(user=user, test=test)
+
+        payload = AttemptExecutionSerializer(attempt).data
+        payload['remaining_seconds'] = test.duration_minutes * 60
+        return Response(payload, status=status.HTTP_200_OK)
+
+
+class AttemptDetailView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, attempt_id):
+        attempt = get_object_or_404(
+            Attempt.objects.select_related('test', 'user').prefetch_related('test__questions__options', 'test__questions__passage'),
+            id=attempt_id,
+        )
+
+        if request.user.role == User.Role.STUDENT and attempt.user_id != request.user.id:
+            self.permission_denied(request, message='Нет доступа к попытке.')
+
+        return Response(AttemptExecutionSerializer(attempt).data)
+
+
+class SaveAttemptAnswerView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, attempt_id):
+        attempt = get_object_or_404(Attempt.objects.select_related('test', 'user'), id=attempt_id)
+
+        if attempt.status != Attempt.AttemptStatus.IN_PROGRESS:
+            return Response({'detail': 'Попытка уже завершена.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if request.user.role == User.Role.STUDENT and attempt.user_id != request.user.id:
+            self.permission_denied(request, message='Нет доступа к попытке.')
+
+        serializer = SaveAnswerSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        question = get_object_or_404(Question, id=serializer.validated_data['question_id'], test=attempt.test)
+        option_id = serializer.validated_data['option_id']
+        selected_option = None
+
+        if option_id is not None:
+            selected_option = get_object_or_404(AnswerOption, id=option_id, question=question)
+
+        answer, _ = Answer.objects.update_or_create(
+            attempt=attempt,
+            question=question,
+            defaults={'selected_option': selected_option},
+        )
+
+        return Response(
+            {
+                'attempt_id': attempt.id,
+                'question_id': question.id,
+                'selected_option_id': answer.selected_option_id,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class FinishAttemptView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, attempt_id):
+        attempt = get_object_or_404(
+            Attempt.objects.select_related('test', 'user').prefetch_related('test__questions__options', 'answers'),
+            id=attempt_id,
+        )
+
+        if request.user.role == User.Role.STUDENT and attempt.user_id != request.user.id:
+            self.permission_denied(request, message='Нет доступа к попытке.')
+
+        if attempt.status == Attempt.AttemptStatus.FINISHED:
+            return Response(AttemptSummarySerializer(attempt).data, status=status.HTTP_200_OK)
+
+        questions = list(attempt.test.questions.all())
+        total_points = sum(q.points for q in questions) or 1
+        score_points = Decimal('0')
+
+        answers_by_question = {
+            answer.question_id: answer.selected_option_id
+            for answer in Answer.objects.filter(attempt=attempt)
+        }
+
+        for question in questions:
+            correct_option = question.options.filter(is_correct=True).first()
+            if correct_option and answers_by_question.get(question.id) == correct_option.id:
+                score_points += Decimal(question.points)
+
+        score_percent = (score_points / Decimal(total_points)) * Decimal('100')
+        score_percent = score_percent.quantize(Decimal('0.01'))
+
+        attempt.score_percent = score_percent
+        attempt.status = Attempt.AttemptStatus.FINISHED
+        attempt.finished_at = timezone.now()
+        attempt.save(update_fields=['score_percent', 'status', 'finished_at'])
+
+        result, _ = Result.objects.update_or_create(
+            attempt=attempt,
+            defaults={
+                'score_percent': score_percent,
+                'level_result': attempt.test.level,
+                'passed': score_percent >= Decimal('60.00'),
+            },
+        )
+
+        payload = AttemptSummarySerializer(attempt).data
+        payload['result_id'] = result.id
+        return Response(payload, status=status.HTTP_200_OK)
+
+
+class AttemptSummaryView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, attempt_id):
+        attempt = get_object_or_404(
+            Attempt.objects.select_related('test', 'user').prefetch_related('result'),
+            id=attempt_id,
+        )
+
+        if request.user.role == User.Role.STUDENT and attempt.user_id != request.user.id:
+            self.permission_denied(request, message='Нет доступа к попытке.')
+
+        return Response(AttemptSummarySerializer(attempt).data)
+
+
+class MyResultsView(ListAPIView):
+    serializer_class = StudentResultSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return Result.objects.select_related('attempt__test', 'attempt__user', 'attempt__user__student_group').filter(
+            attempt__user=self.request.user,
+            attempt__status=Attempt.AttemptStatus.FINISHED,
+        ).order_by('-created_at')
+
+
+class ResultsOverviewView(ListAPIView):
+    serializer_class = StudentResultSerializer
+    permission_classes = [IsTeacherOrAdmin]
+
+    def get_queryset(self):
+        queryset = Result.objects.select_related(
+            'attempt__test',
+            'attempt__user',
+            'attempt__user__student_group',
+        ).filter(attempt__status=Attempt.AttemptStatus.FINISHED).order_by('-created_at')
+
+        test_id = self.request.query_params.get('test_id')
+        group_id = self.request.query_params.get('group_id')
+        student_id = self.request.query_params.get('student_id')
+
+        if test_id:
+            queryset = queryset.filter(attempt__test_id=test_id)
+        if group_id:
+            queryset = queryset.filter(attempt__user__student_group_id=group_id)
+        if student_id:
+            queryset = queryset.filter(attempt__user_id=student_id)
+
+        return queryset
+
+
 class AdminTestListCreateView(ListCreateAPIView):
     permission_classes = [IsAdminRole]
     queryset = Test.objects.order_by('-id')
@@ -80,7 +281,7 @@ class AdminTestPublishView(APIView):
     permission_classes = [IsAdminRole]
 
     def post(self, request, pk):
-        test = Test.objects.get(pk=pk)
+        test = get_object_or_404(Test, pk=pk)
         test.is_published = bool(request.data.get('is_published'))
         test.save(update_fields=['is_published'])
         return Response(AdminTestSerializer(test).data, status=status.HTTP_200_OK)

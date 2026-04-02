@@ -10,6 +10,13 @@ from testing.views import (
     AdminTestPublishView,
     AssignmentDetailView,
     AssignmentListCreateView,
+    AttemptDetailView,
+    AttemptSummaryView,
+    FinishAttemptView,
+    MyResultsView,
+    ResultsOverviewView,
+    SaveAttemptAnswerView,
+    StartAttemptView,
     TestDetailView,
     TestListView,
 )
@@ -17,6 +24,19 @@ from testing.views import (
 urlpatterns = [
     path('', TestListView.as_view(), name='tests-list'),
     path('<int:pk>/', TestDetailView.as_view(), name='tests-detail'),
+    path('<int:test_id>/start/', StartAttemptView.as_view(), name='tests-start-attempt'),
+]
+
+attempt_urlpatterns = [
+    path('<int:attempt_id>/', AttemptDetailView.as_view(), name='attempts-detail'),
+    path('<int:attempt_id>/answers/', SaveAttemptAnswerView.as_view(), name='attempts-save-answer'),
+    path('<int:attempt_id>/finish/', FinishAttemptView.as_view(), name='attempts-finish'),
+    path('<int:attempt_id>/summary/', AttemptSummaryView.as_view(), name='attempts-summary'),
+]
+
+result_urlpatterns = [
+    path('me/', MyResultsView.as_view(), name='results-me'),
+    path('overview/', ResultsOverviewView.as_view(), name='results-overview'),
 ]
 
 admin_urlpatterns = [

@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from testing.models import AnswerOption, Question, ReadingPassage, Test, TestAssignment
+from testing.models import Answer, AnswerOption, Attempt, Question, ReadingPassage, Result, Test, TestAssignment
 
 
 class TestListSerializer(serializers.ModelSerializer):
@@ -39,6 +39,64 @@ class TestDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = Test
         fields = ('id', 'title', 'level', 'duration_minutes', 'questions')
+
+
+class AttemptExecutionSerializer(serializers.ModelSerializer):
+    test = TestDetailSerializer(read_only=True)
+
+    class Meta:
+        model = Attempt
+        fields = ('id', 'status', 'started_at', 'finished_at', 'test')
+
+
+class SaveAnswerSerializer(serializers.Serializer):
+    question_id = serializers.IntegerField()
+    option_id = serializers.IntegerField(allow_null=True)
+
+
+class AttemptSummarySerializer(serializers.ModelSerializer):
+    test_title = serializers.CharField(source='test.title', read_only=True)
+    result = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Attempt
+        fields = ('id', 'test', 'test_title', 'status', 'started_at', 'finished_at', 'score_percent', 'result')
+
+    def get_result(self, obj):
+        if not hasattr(obj, 'result'):
+            return None
+        return {
+            'score_percent': obj.result.score_percent,
+            'level_result': obj.result.level_result,
+            'passed': obj.result.passed,
+        }
+
+
+class StudentResultSerializer(serializers.ModelSerializer):
+    test_title = serializers.CharField(source='attempt.test.title', read_only=True)
+    user_id = serializers.IntegerField(source='attempt.user_id', read_only=True)
+    username = serializers.CharField(source='attempt.user.username', read_only=True)
+    user_full_name = serializers.CharField(source='attempt.user.full_name', read_only=True)
+    user_group = serializers.CharField(source='attempt.user.student_group.code', read_only=True, default='—')
+    attempt_id = serializers.IntegerField(source='attempt.id', read_only=True)
+    finished_at = serializers.DateTimeField(source='attempt.finished_at', read_only=True)
+
+    class Meta:
+        model = Result
+        fields = (
+            'id',
+            'attempt_id',
+            'test_title',
+            'user_id',
+            'username',
+            'user_full_name',
+            'user_group',
+            'score_percent',
+            'level_result',
+            'passed',
+            'finished_at',
+            'created_at',
+        )
 
 
 class AdminTestSerializer(serializers.ModelSerializer):
