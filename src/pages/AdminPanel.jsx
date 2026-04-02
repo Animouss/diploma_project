@@ -1,167 +1,388 @@
-import React, { useState } from "react";
-
-const initialUsers = [
-    {
-        id: 1,
-        fullName: "Иванов Иван Иванович",
-        login: "ivanov_i",
-        role: "Студент",
-        group: "ИТ-21-01"
-    },
-    {
-        id: 2,
-        fullName: "Петрова Анна Сергеевна",
-        login: "petrova_a",
-        role: "Преподаватель",
-        group: "Кафедра русского языка"
-    }
-];
+import React, { useCallback, useEffect, useState } from 'react';
+import { useAuth } from '../context/auth-context';
+import {
+    assignTestToGroups,
+    createAdminTest,
+    createGroup,
+    createOption,
+    createQuestion,
+    createUser,
+    getAdminTests,
+    getAssignments,
+    getGroups,
+    getOptions,
+    getQuestions,
+    getUsers,
+    updateAdminTest,
+    updateUser,
+} from '../api/admin';
 
 const AdminPanel = () => {
-    const [users, setUsers] = useState(initialUsers);
+    const { token } = useAuth();
+    const [users, setUsers] = useState([]);
+    const [groups, setGroups] = useState([]);
+    const [tests, setTests] = useState([]);
+    const [questions, setQuestions] = useState([]);
+    const [options, setOptions] = useState([]);
+    const [assignments, setAssignments] = useState([]);
 
-    const [fullName, setFullName] = useState("");
-    const [login, setLogin] = useState("");
-    const [password, setPassword] = useState("");
-    const [role, setRole] = useState("Студент");
-    const [group, setGroup] = useState("");
-    const [message, setMessage] = useState("");
+    const [selectedTestId, setSelectedTestId] = useState('');
+    const [selectedQuestionId, setSelectedQuestionId] = useState('');
+    const [message, setMessage] = useState('');
+    const [error, setError] = useState('');
 
-    const handleCreateUser = (e) => {
-        e.preventDefault();
+    const [newUser, setNewUser] = useState({
+        username: '',
+        full_name: '',
+        password: '',
+        role: 'student',
+        student_group_id: ''
+    });
 
-        if (!fullName.trim() || !login.trim() || !password.trim()) {
-            setMessage("Заполните, пожалуйста, все обязательные поля.");
+    const [newGroup, setNewGroup] = useState({ name: '', code: '' });
+    const [newTest, setNewTest] = useState({ title: '', level: 'A2', duration_minutes: 30, is_published: false });
+    const [newQuestion, setNewQuestion] = useState({ question_type: 'single_choice', text: '', order: 1, points: 1, passage_text: '' });
+    const [newOption, setNewOption] = useState({ text: '', is_correct: false, order: 1 });
+    const [assignmentGroupIds, setAssignmentGroupIds] = useState([]);
+
+    const showSuccess = (text) => {
+        setMessage(text);
+        setError('');
+    };
+
+    const showError = (err) => {
+        const backendDetail = err?.message || err?.detail;
+        setError(backendDetail || 'Ошибка запроса');
+        setMessage('');
+    };
+
+    const loadBaseData = useCallback(async () => {
+        if (!token || token.startsWith('demo-token-')) {
+            setError('Для управления данными необходим backend и вход под реальным администратором.');
             return;
         }
 
-        const newUser = {
-            id: Date.now(),
-            fullName,
-            login,
-            role,
-            group: group || (role === "Студент" ? "—" : "—")
+        try {
+            const [usersData, groupsData, testsData] = await Promise.all([
+                getUsers(token),
+                getGroups(token),
+                getAdminTests(token)
+            ]);
+            setUsers(usersData);
+            setGroups(groupsData);
+            setTests(testsData);
+        } catch (err) {
+            showError(err);
+        }
+    }, [token]);
+
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            void loadBaseData();
+        }, 0);
+
+        return () => clearTimeout(timer);
+    }, [loadBaseData]);
+
+    useEffect(() => {
+        const loadTestDetails = async () => {
+            if (!selectedTestId) {
+                setQuestions([]);
+                setAssignments([]);
+                return;
+            }
+
+            try {
+                const [qData, aData] = await Promise.all([
+                    getQuestions(token, selectedTestId),
+                    getAssignments(token, selectedTestId)
+                ]);
+                setQuestions(qData);
+                setAssignments(aData);
+            } catch (err) {
+                showError(err);
+            }
         };
 
-        setUsers((prev) => [...prev, newUser]);
-        setMessage("Аккаунт успешно создан!");
+        if (token) {
+            loadTestDetails();
+        }
+    }, [selectedTestId, token]);
 
-        // очищаем форму
-        setFullName("");
-        setLogin("");
-        setPassword("");
-        setRole("Студент");
-        setGroup("");
+    useEffect(() => {
+        const loadQuestionOptions = async () => {
+            if (!selectedQuestionId) {
+                setOptions([]);
+                return;
+            }
+
+            try {
+                const data = await getOptions(token, selectedQuestionId);
+                setOptions(data);
+            } catch (err) {
+                showError(err);
+            }
+        };
+
+        if (token) {
+            loadQuestionOptions();
+        }
+    }, [selectedQuestionId, token]);
+
+    const handleCreateUser = async (e) => {
+        e.preventDefault();
+        if (!newUser.username || !newUser.password || !newUser.full_name) {
+            setError('Заполните обязательные поля пользователя.');
+            return;
+        }
+
+        if (newUser.password.length < 6) {
+            setError('Пароль должен содержать минимум 6 символов.');
+            return;
+        }
+
+        try {
+            await createUser(token, {
+                ...newUser,
+                student_group_id: newUser.student_group_id || null
+            });
+            setNewUser({ username: '', full_name: '', password: '', role: 'student', student_group_id: '' });
+            showSuccess('Пользователь создан и может войти в систему.');
+            await loadBaseData();
+        } catch (err) {
+            showError(err);
+        }
+    };
+
+    const handleUserRoleChange = async (userId, role) => {
+        try {
+            await updateUser(token, userId, { role });
+            showSuccess('Роль пользователя обновлена.');
+            await loadBaseData();
+        } catch (err) {
+            showError(err);
+        }
+    };
+
+    const handleCreateGroup = async (e) => {
+        e.preventDefault();
+        if (!newGroup.name || !newGroup.code) {
+            setError('Введите название и код группы.');
+            return;
+        }
+
+        try {
+            await createGroup(token, newGroup);
+            setNewGroup({ name: '', code: '' });
+            showSuccess('Группа создана.');
+            await loadBaseData();
+        } catch (err) {
+            showError(err);
+        }
+    };
+
+    const handleCreateTest = async (e) => {
+        e.preventDefault();
+        if (!newTest.title) {
+            setError('Введите название теста.');
+            return;
+        }
+
+        try {
+            await createAdminTest(token, newTest);
+            setNewTest({ title: '', level: 'A2', duration_minutes: 30, is_published: false });
+            showSuccess('Тест создан.');
+            await loadBaseData();
+        } catch (err) {
+            showError(err);
+        }
+    };
+
+    const handleTestPublishToggle = async (testId, value) => {
+        try {
+            await updateAdminTest(token, testId, { is_published: value });
+            showSuccess('Статус публикации обновлён.');
+            await loadBaseData();
+        } catch (err) {
+            showError(err);
+        }
+    };
+
+    const handleCreateQuestion = async (e) => {
+        e.preventDefault();
+        if (!selectedTestId || !newQuestion.text) {
+            setError('Выберите тест и заполните текст вопроса.');
+            return;
+        }
+
+        try {
+            await createQuestion(token, {
+                ...newQuestion,
+                test: Number(selectedTestId),
+                order: Number(newQuestion.order),
+                points: Number(newQuestion.points)
+            });
+            setNewQuestion({ question_type: 'single_choice', text: '', order: 1, points: 1, passage_text: '' });
+            showSuccess('Вопрос добавлен.');
+            const qData = await getQuestions(token, selectedTestId);
+            setQuestions(qData);
+        } catch (err) {
+            showError(err);
+        }
+    };
+
+    const handleCreateOption = async (e) => {
+        e.preventDefault();
+        if (!selectedQuestionId || !newOption.text) {
+            setError('Выберите вопрос и заполните вариант ответа.');
+            return;
+        }
+
+        try {
+            await createOption(token, {
+                ...newOption,
+                question: Number(selectedQuestionId),
+                order: Number(newOption.order)
+            });
+            setNewOption({ text: '', is_correct: false, order: 1 });
+            showSuccess('Вариант ответа добавлен.');
+            const data = await getOptions(token, selectedQuestionId);
+            setOptions(data);
+        } catch (err) {
+            showError(err);
+        }
+    };
+
+    const handleAssign = async (e) => {
+        e.preventDefault();
+        if (!selectedTestId || assignmentGroupIds.length === 0) {
+            setError('Выберите тест и хотя бы одну группу.');
+            return;
+        }
+
+        try {
+            await assignTestToGroups(token, {
+                test_id: Number(selectedTestId),
+                group_ids: assignmentGroupIds
+            });
+            showSuccess('Тест назначен выбранным группам.');
+            const data = await getAssignments(token, selectedTestId);
+            setAssignments(data);
+        } catch (err) {
+            showError(err);
+        }
     };
 
     return (
         <div className="page">
             <h1 className="page__title">Административная панель</h1>
-            <p className="page__subtitle">
-                Раздел предназначен для создания учётных записей студентов и преподавателей,
-                а также для управления пользователями системы тестирования.
-            </p>
+            <p className="page__subtitle">Управление пользователями, группами, тестами, вопросами и назначениями.</p>
+
+            {message && <div className="admin-message">{message}</div>}
+            {error && <div className="admin-message">{error}</div>}
 
             <div className="admin-grid">
-                {/* Левая колонка — форма создания аккаунта */}
                 <div className="admin-card">
-                    <h2 className="admin-card__title">Создание аккаунта</h2>
-                    <p className="admin-card__subtitle">
-                        В демонстрационной версии данные сохраняются только на стороне клиента,
-                        без записи в базу данных.
-                    </p>
-
+                    <h2 className="admin-card__title">Пользователи</h2>
                     <form className="admin-form" onSubmit={handleCreateUser}>
-                        <div className="admin-field">
-                            <label htmlFor="fullName">ФИО пользователя</label>
-                            <input
-                                id="fullName"
-                                type="text"
-                                value={fullName}
-                                onChange={(e) => setFullName(e.target.value)}
-                                placeholder="Например, Иванов Иван Иванович"
-                            />
-                        </div>
-
-                        <div className="admin-field">
-                            <label htmlFor="login">Логин</label>
-                            <input
-                                id="login"
-                                type="text"
-                                value={login}
-                                onChange={(e) => setLogin(e.target.value)}
-                                placeholder="ivanov_i"
-                            />
-                        </div>
-
-                        <div className="admin-field">
-                            <label htmlFor="password">Пароль</label>
-                            <input
-                                id="password"
-                                type="password"
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                                placeholder="Задайте пароль"
-                            />
-                        </div>
-
-                        <div className="admin-field">
-                            <label htmlFor="role">Роль</label>
-                            <select
-                                id="role"
-                                value={role}
-                                onChange={(e) => setRole(e.target.value)}
-                            >
-                                <option>Студент</option>
-                                <option>Преподаватель</option>
-                                <option>Администратор</option>
-                            </select>
-                        </div>
-
-                        <div className="admin-field">
-                            <label htmlFor="group">
-                                Группа / подразделение <span className="admin-field__optional">(необязательно)</span>
-                            </label>
-                            <input
-                                id="group"
-                                type="text"
-                                value={group}
-                                onChange={(e) => setGroup(e.target.value)}
-                                placeholder="Например, ИТ-21-01"
-                            />
-                        </div>
-
-                        <button type="submit" className="btn-primary admin-submit">
-                            Создать аккаунт
-                        </button>
-
-                        {message && <div className="admin-message">{message}</div>}
+                        <div className="admin-field"><label>Логин</label><input value={newUser.username} onChange={(e) => setNewUser((p) => ({ ...p, username: e.target.value }))} /></div>
+                        <div className="admin-field"><label>ФИО</label><input value={newUser.full_name} onChange={(e) => setNewUser((p) => ({ ...p, full_name: e.target.value }))} /></div>
+                        <div className="admin-field"><label>Пароль</label><input type="password" value={newUser.password} onChange={(e) => setNewUser((p) => ({ ...p, password: e.target.value }))} /></div>
+                        <div className="admin-field"><label>Роль</label><select value={newUser.role} onChange={(e) => setNewUser((p) => ({ ...p, role: e.target.value }))}><option value="student">Студент</option><option value="teacher">Преподаватель</option><option value="admin">Администратор</option></select></div>
+                        <div className="admin-field"><label>Группа</label><select value={newUser.student_group_id} onChange={(e) => setNewUser((p) => ({ ...p, student_group_id: e.target.value }))}><option value="">—</option>{groups.map((g) => <option key={g.id} value={g.id}>{g.code}</option>)}</select></div>
+                        <button className="btn-primary admin-submit" type="submit">Создать пользователя</button>
                     </form>
-                </div>
-
-                {/* Правая колонка — список пользователей */}
-                <div className="admin-card">
-                    <h2 className="admin-card__title">Список пользователей</h2>
                     <div className="admin-table-wrapper">
                         <table className="table admin-table">
-                            <thead>
-                            <tr>
-                                <th>ФИО</th>
-                                <th>Логин</th>
-                                <th>Роль</th>
-                                <th>Группа / подразделение</th>
-                            </tr>
-                            </thead>
-                            <tbody>
-                            {users.map((u) => (
-                                <tr key={u.id}>
-                                    <td>{u.fullName}</td>
-                                    <td>{u.login}</td>
-                                    <td>{u.role}</td>
-                                    <td>{u.group}</td>
-                                </tr>
-                            ))}
-                            </tbody>
+                            <thead><tr><th>Логин</th><th>ФИО</th><th>Роль</th><th>Группа</th></tr></thead>
+                            <tbody>{users.map((u) => (<tr key={u.id}><td>{u.username}</td><td>{u.full_name}</td><td><select value={u.role} onChange={(e) => handleUserRoleChange(u.id, e.target.value)}><option value="student">Студент</option><option value="teacher">Преподаватель</option><option value="admin">Администратор</option></select></td><td>{u.group}</td></tr>))}</tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div className="admin-card">
+                    <h2 className="admin-card__title">Группы и тесты</h2>
+                    <form className="admin-form" onSubmit={handleCreateGroup}>
+                        <div className="admin-field"><label>Название группы</label><input value={newGroup.name} onChange={(e) => setNewGroup((p) => ({ ...p, name: e.target.value }))} /></div>
+                        <div className="admin-field"><label>Код группы</label><input value={newGroup.code} onChange={(e) => setNewGroup((p) => ({ ...p, code: e.target.value }))} /></div>
+                        <button className="btn-secondary" type="submit">Создать группу</button>
+                    </form>
+
+                    <form className="admin-form" onSubmit={handleCreateTest}>
+                        <div className="admin-field"><label>Название теста</label><input value={newTest.title} onChange={(e) => setNewTest((p) => ({ ...p, title: e.target.value }))} /></div>
+                        <div className="admin-field"><label>Уровень</label><input value={newTest.level} onChange={(e) => setNewTest((p) => ({ ...p, level: e.target.value }))} /></div>
+                        <div className="admin-field"><label>Длительность (мин)</label><input type="number" value={newTest.duration_minutes} onChange={(e) => setNewTest((p) => ({ ...p, duration_minutes: Number(e.target.value) }))} /></div>
+                        <button className="btn-primary" type="submit">Создать тест</button>
+                    </form>
+
+                    <div className="admin-table-wrapper">
+                        <table className="table admin-table">
+                            <thead><tr><th>Тест</th><th>Уровень</th><th>Публикация</th><th>Видимость для студента</th></tr></thead>
+                            <tbody>{tests.map((t) => (<tr key={t.id}><td><button className="btn-secondary" type="button" onClick={() => setSelectedTestId(String(t.id))}>{t.title}</button></td><td>{t.level}</td><td><input type="checkbox" checked={t.is_published} onChange={(e) => handleTestPublishToggle(t.id, e.target.checked)} /></td><td>{t.is_published ? 'Доступен (при назначении)' : 'Скрыт от студентов'}</td></tr>))}</tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div className="admin-grid">
+                <div className="admin-card">
+                    <h2 className="admin-card__title">Вопросы и варианты</h2>
+                    <p className="admin-card__subtitle">Выбранный тест ID: {selectedTestId || '—'}</p>
+                    <form className="admin-form" onSubmit={handleCreateQuestion}>
+                        <div className="admin-field"><label>Тип вопроса</label><select value={newQuestion.question_type} onChange={(e) => setNewQuestion((p) => ({ ...p, question_type: e.target.value }))}><option value="single_choice">Single choice</option><option value="reading_single_choice">Reading single choice</option></select></div>
+                        <div className="admin-field"><label>Текст вопроса</label><input value={newQuestion.text} onChange={(e) => setNewQuestion((p) => ({ ...p, text: e.target.value }))} /></div>
+                        <div className="admin-field"><label>Текст для чтения (опционально)</label><textarea value={newQuestion.passage_text} onChange={(e) => setNewQuestion((p) => ({ ...p, passage_text: e.target.value }))} /></div>
+                        <button className="btn-primary" type="submit">Добавить вопрос</button>
+                    </form>
+
+                    <div className="admin-table-wrapper">
+                        <table className="table admin-table">
+                            <thead><tr><th>ID</th><th>Вопрос</th><th>Тип</th></tr></thead>
+                            <tbody>{questions.map((q) => (<tr key={q.id}><td>{q.id}</td><td><button className="btn-secondary" type="button" onClick={() => setSelectedQuestionId(String(q.id))}>{q.text}</button></td><td>{q.question_type}</td></tr>))}</tbody>
+                        </table>
+                    </div>
+
+                    <form className="admin-form" onSubmit={handleCreateOption}>
+                        <div className="admin-field"><label>Вариант ответа</label><input value={newOption.text} onChange={(e) => setNewOption((p) => ({ ...p, text: e.target.value }))} /></div>
+                        <div className="admin-field"><label><input type="checkbox" checked={newOption.is_correct} onChange={(e) => setNewOption((p) => ({ ...p, is_correct: e.target.checked }))} /> Правильный</label></div>
+                        <button className="btn-secondary" type="submit">Добавить вариант</button>
+                    </form>
+
+                    <div className="admin-table-wrapper">
+                        <table className="table admin-table">
+                            <thead><tr><th>Текст</th><th>Правильный</th></tr></thead>
+                            <tbody>{options.map((o) => (<tr key={o.id}><td>{o.text}</td><td>{o.is_correct ? 'Да' : 'Нет'}</td></tr>))}</tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div className="admin-card">
+                    <h2 className="admin-card__title">Назначения тестов группам</h2>
+                    <form className="admin-form" onSubmit={handleAssign}>
+                        <div className="admin-field"><label>Тест</label><select value={selectedTestId} onChange={(e) => setSelectedTestId(e.target.value)}><option value="">Выберите тест</option>{tests.map((t) => <option key={t.id} value={t.id}>{t.title}</option>)}</select></div>
+                        <div className="admin-field">
+                            <label>Группы</label>
+                            <div className="admin-checkboxes">
+                                {groups.map((g) => (
+                                    <label key={g.id}>
+                                        <input
+                                            type="checkbox"
+                                            checked={assignmentGroupIds.includes(g.id)}
+                                            onChange={(e) => {
+                                                setAssignmentGroupIds((prev) => e.target.checked ? [...prev, g.id] : prev.filter((id) => id !== g.id));
+                                            }}
+                                        /> {g.code}
+                                    </label>
+                                ))}
+                            </div>
+                        </div>
+                        <button className="btn-primary" type="submit">Назначить тест</button>
+                    </form>
+
+                    <div className="admin-table-wrapper">
+                        <table className="table admin-table">
+                            <thead><tr><th>Тест</th><th>Группа</th><th>Дата</th></tr></thead>
+                            <tbody>{assignments.map((a) => (<tr key={a.id}><td>{a.test_title}</td><td>{a.group_code}</td><td>{new Date(a.assigned_at).toLocaleDateString('ru-RU')}</td></tr>))}</tbody>
                         </table>
                     </div>
                 </div>
