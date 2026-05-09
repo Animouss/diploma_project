@@ -22,7 +22,9 @@ import {
 } from '../api/admin';
 
 const AdminPanel = () => {
-    const { token } = useAuth();
+    const { token, user } = useAuth();
+    const isAdmin = user?.role === 'admin';
+    const formatQuestionType = (type) => type === 'reading_single_choice' ? 'Чтение' : 'Грамматика';
     const [users, setUsers] = useState([]);
     const [groups, setGroups] = useState([]);
     const [tests, setTests] = useState([]);
@@ -280,15 +282,15 @@ const AdminPanel = () => {
     };
 
     return (
-        <div className="page">
-            <h1 className="page__title">Административная панель</h1>
+        <div className="page page--wide">
+            <h1 className="page__title">{isAdmin ? 'Административная панель' : 'Управление тестами'}</h1>
             <p className="page__subtitle">Управление пользователями, группами, тестами, вопросами и назначениями.</p>
 
             {message && <div className="admin-message">{message}</div>}
             {error && <div className="admin-message">{error}</div>}
 
             <div className="admin-grid">
-                <div className="admin-card">
+                {isAdmin && <div className="admin-card">
                     <h2 className="admin-card__title">Пользователи</h2>
                     <form className="admin-form" onSubmit={handleCreateUser}>
                         <div className="admin-field"><label>Логин</label><input value={newUser.username} onChange={(e) => setNewUser((p) => ({ ...p, username: e.target.value }))} /></div>
@@ -298,22 +300,22 @@ const AdminPanel = () => {
                         <div className="admin-field"><label>Группа</label><select value={newUser.student_group_id} onChange={(e) => setNewUser((p) => ({ ...p, student_group_id: e.target.value }))}><option value="">—</option>{groups.map((g) => <option key={g.id} value={g.id}>{g.code}</option>)}</select></div>
                         <button className="btn-primary admin-submit" type="submit">Создать пользователя</button>
                     </form>
-                    <div className="admin-table-wrapper">
-                        <table className="table admin-table">
-                            <thead><tr><th>Логин</th><th>ФИО</th><th>Роль</th><th>Группа</th></tr></thead>
-                            <tbody>{users.map((u) => (<tr key={u.id}><td>{u.username}</td><td>{u.full_name}</td><td><select value={u.role} onChange={(e) => handleUserRoleChange(u.id, e.target.value)}><option value="student">Студент</option><option value="teacher">Преподаватель</option><option value="admin">Администратор</option></select></td><td>{u.group}</td></tr>))}</tbody>
-                        </table>
-                    </div>
-                </div>
+                    <a className="btn-secondary" href="/users">Все пользователи</a>
+                </div>}
 
-                <div className="admin-card">
-                    <h2 className="admin-card__title">Группы и тесты</h2>
+                {isAdmin && <div className="admin-card">
+                    <h2 className="admin-card__title">Группы</h2>
                     <form className="admin-form" onSubmit={handleCreateGroup}>
                         <div className="admin-field"><label>Название группы</label><input value={newGroup.name} onChange={(e) => setNewGroup((p) => ({ ...p, name: e.target.value }))} /></div>
                         <div className="admin-field"><label>Код группы</label><input value={newGroup.code} onChange={(e) => setNewGroup((p) => ({ ...p, code: e.target.value }))} /></div>
                         <button className="btn-secondary" type="submit">Создать группу</button>
                     </form>
 
+                    <div className="admin-table-wrapper"><table className="table admin-table"><thead><tr><th>Название</th><th>Код</th></tr></thead><tbody>{groups.map((g)=><tr key={g.id}><td>{g.name}</td><td>{g.code}</td></tr>)}</tbody></table></div>
+                </div>}
+
+                <div className="admin-card">
+                    <h2 className="admin-card__title">Тесты</h2>
                     <form className="admin-form" onSubmit={handleCreateTest}>
                         <div className="admin-field"><label>Название теста</label><input value={newTest.title} onChange={(e) => setNewTest((p) => ({ ...p, title: e.target.value }))} /></div>
                         <div className="admin-field"><label>Уровень</label><input value={newTest.level} onChange={(e) => setNewTest((p) => ({ ...p, level: e.target.value }))} /></div>
@@ -346,7 +348,7 @@ const AdminPanel = () => {
                     <div className="admin-table-wrapper">
                         <table className="table admin-table">
                             <thead><tr><th>ID</th><th>Вопрос</th><th>Тип</th><th>Действия</th></tr></thead>
-                            <tbody>{questions.map((q) => (<tr key={q.id}><td>{q.id}</td><td><button className="btn-secondary" type="button" onClick={() => setSelectedQuestionId(String(q.id))}>{q.text}</button></td><td>{q.question_type}</td><td><button className="btn-secondary" type="button" onClick={() => { setEditingQuestionId(q.id); setNewQuestion({ question_type: q.question_type, text: q.text, order: q.order, points: q.points, passage_text: q.passage_text || '' }); }}>Редактировать</button> <button className="btn-secondary" type="button" onClick={async () => { if (!window.confirm('Вы уверены, что хотите удалить вопрос?')) return; await deleteQuestion(token, q.id); const qData = await getQuestions(token, selectedTestId); setQuestions(qData); if (String(q.id) === selectedQuestionId) { setSelectedQuestionId(''); setOptions([]); } }}>Удалить</button></td></tr>))}</tbody>
+                            <tbody>{questions.map((q) => (<tr key={q.id}><td>{q.id}</td><td><button title={q.text} className="btn-secondary question-cell-btn" type="button" onClick={() => setSelectedQuestionId(String(q.id))}>{q.text}</button></td><td>{formatQuestionType(q.question_type)}</td><td><button className="btn-secondary" type="button" onClick={() => { setEditingQuestionId(q.id); setNewQuestion({ question_type: q.question_type, text: q.text, order: q.order, points: q.points, passage_text: q.passage_text || '' }); }}>Редактировать</button> <button className="btn-secondary" type="button" onClick={async () => { if (!window.confirm('Вы уверены, что хотите удалить вопрос?')) return; await deleteQuestion(token, q.id); const qData = await getQuestions(token, selectedTestId); setQuestions(qData); if (String(q.id) === selectedQuestionId) { setSelectedQuestionId(''); setOptions([]); } }}>Удалить</button></td></tr>))}</tbody>
                         </table>
                     </div>
 

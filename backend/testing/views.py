@@ -281,19 +281,19 @@ class ResultsOverviewView(ListAPIView):
 
 
 class AdminTestListCreateView(ListCreateAPIView):
-    permission_classes = [IsAdminRole]
+    permission_classes = [IsTeacherOrAdmin]
     queryset = Test.objects.order_by('-id')
     serializer_class = AdminTestSerializer
 
 
 class AdminTestDetailView(RetrieveUpdateDestroyAPIView):
-    permission_classes = [IsAdminRole]
+    permission_classes = [IsTeacherOrAdmin]
     queryset = Test.objects.all()
     serializer_class = AdminTestSerializer
 
 
 class AdminTestPublishView(APIView):
-    permission_classes = [IsAdminRole]
+    permission_classes = [IsTeacherOrAdmin]
 
     def post(self, request, pk):
         test = get_object_or_404(Test, pk=pk)
@@ -303,7 +303,7 @@ class AdminTestPublishView(APIView):
 
 
 class AdminQuestionListCreateView(ListCreateAPIView):
-    permission_classes = [IsAdminRole]
+    permission_classes = [IsTeacherOrAdmin]
     serializer_class = AdminQuestionSerializer
 
     def get_queryset(self):
@@ -315,13 +315,13 @@ class AdminQuestionListCreateView(ListCreateAPIView):
 
 
 class AdminQuestionDetailView(RetrieveUpdateDestroyAPIView):
-    permission_classes = [IsAdminRole]
+    permission_classes = [IsTeacherOrAdmin]
     queryset = Question.objects.select_related('passage').all()
     serializer_class = AdminQuestionSerializer
 
 
 class AdminOptionListCreateView(ListCreateAPIView):
-    permission_classes = [IsAdminRole]
+    permission_classes = [IsTeacherOrAdmin]
     serializer_class = AdminOptionSerializer
 
     def get_queryset(self):
@@ -333,13 +333,13 @@ class AdminOptionListCreateView(ListCreateAPIView):
 
 
 class AdminOptionDetailView(RetrieveUpdateDestroyAPIView):
-    permission_classes = [IsAdminRole]
+    permission_classes = [IsTeacherOrAdmin]
     queryset = AnswerOption.objects.all()
     serializer_class = AdminOptionSerializer
 
 
 class AssignmentListCreateView(APIView):
-    permission_classes = [IsAdminRole]
+    permission_classes = [IsTeacherOrAdmin]
 
     def get(self, request):
         test_id = request.query_params.get('test_id')
@@ -364,6 +364,6 @@ class AssignmentListCreateView(APIView):
 
 
 class AssignmentDetailView(RetrieveUpdateDestroyAPIView):
-    permission_classes = [IsAdminRole]
+    permission_classes = [IsTeacherOrAdmin]
     queryset = TestAssignment.objects.select_related('test', 'group').all()
     serializer_class = AssignmentSerializer

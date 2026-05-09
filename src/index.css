@@ -602,3 +602,24 @@ body {
 .admin-table {
     font-size: 12px;
 }
+
+.page--wide {
+    max-width: 1280px;
+}
+
+.question-cell-btn {
+    width: 220px;
+    max-width: 220px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: normal;
+    line-height: 1.25;
+    min-height: 38px;
+}
+
+.admin-table td {
+    vertical-align: middle;
+}

@@ -20,7 +20,7 @@ const Login = () => {
             await login(loginValue.trim(), password.trim());
             navigate('/');
         } catch (err) {
-            const message = err?.message || 'Ошибка входа. Проверьте данные.';
+            const message = err?.message || 'Неправильный логин или пароль';
             setError(message);
         } finally {
             setIsLoading(false);
@@ -62,9 +62,6 @@ const Login = () => {
                 </form>
 
                 {error && <p className="page__hint">{error}</p>}
-                <p className="page__hint">
-                    Демо-доступ: student / student123, teacher / teacher123, admin / admin123.
-                </p>
             </div>
         </div>
     );
