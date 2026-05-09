@@ -1,18 +1,29 @@
-import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/auth-context';
 
 const Login = () => {
     const navigate = useNavigate();
-    const [login, setLogin] = useState("");
-    const [password, setPassword] = useState("");
+    const { login } = useAuth();
 
-    const handleSubmit = (e) => {
+    const [loginValue, setLoginValue] = useState('');
+    const [password, setPassword] = useState('');
+    const [error, setError] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
+
+    const handleSubmit = async (e) => {
         e.preventDefault();
+        setError('');
+        setIsLoading(true);
 
-        // Пока без настоящей авторизации — просто переходим на главную.
-        // Потом здесь можно будет добавить запрос к Django.
-        if (login.trim() && password.trim()) {
-            navigate("/");
+        try {
+            await login(loginValue.trim(), password.trim());
+            navigate('/');
+        } catch (err) {
+            const message = err?.message || 'Неправильный логин или пароль';
+            setError(message);
+        } finally {
+            setIsLoading(false);
         }
     };
 
@@ -20,9 +31,7 @@ const Login = () => {
         <div className="login-page">
             <div className="login-card">
                 <h1 className="login-title">Система тестирования по русскому языку</h1>
-                <p className="login-subtitle">
-                    Введите логин и пароль для входа в систему.
-                </p>
+                <p className="login-subtitle">Введите логин и пароль для входа в систему.</p>
 
                 <form onSubmit={handleSubmit} className="login-form">
                     <div className="login-field">
@@ -30,8 +39,8 @@ const Login = () => {
                         <input
                             id="login"
                             type="text"
-                            value={login}
-                            onChange={(e) => setLogin(e.target.value)}
+                            value={loginValue}
+                            onChange={(e) => setLoginValue(e.target.value)}
                             placeholder="Введите логин"
                         />
                     </div>
@@ -47,12 +56,12 @@ const Login = () => {
                         />
                     </div>
 
-                    <button type="submit" className="btn-primary login-button">
-                        Войти
+                    <button type="submit" className="btn-primary login-button" disabled={isLoading}>
+                        {isLoading ? 'Вход...' : 'Войти'}
                     </button>
                 </form>
 
-
+                {error && <p className="page__hint">{error}</p>}
             </div>
         </div>
     );
