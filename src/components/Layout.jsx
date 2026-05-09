@@ -8,6 +8,7 @@ import Tests from '../pages/Tests';
 import Results from '../pages/Results';
 import AdminPanel from '../pages/AdminPanel';
 import TestRunner from '../pages/TestRunner';
+import UsersPage from '../pages/UsersPage';
 import ProtectedRoute from './ProtectedRoute';
 
 const Layout = () => {
@@ -27,11 +28,12 @@ const Layout = () => {
                         <Route
                             path="/admin"
                             element={
-                                <ProtectedRoute roles={['admin']}>
+                                <ProtectedRoute roles={['admin','teacher']}>
                                     <AdminPanel />
                                 </ProtectedRoute>
                             }
                         />
+                        <Route path="/users" element={<ProtectedRoute roles={['admin']}><UsersPage /></ProtectedRoute>} />
                     </Routes>
                 </div>
             </div>

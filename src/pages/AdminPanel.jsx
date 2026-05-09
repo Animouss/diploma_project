@@ -15,6 +15,10 @@ import {
     getUsers,
     updateAdminTest,
     updateUser,
+    deleteAdminTest,
+    deleteOption,
+    deleteQuestion,
+    updateQuestion,
 } from '../api/admin';
 
 const AdminPanel = () => {
@@ -43,6 +47,7 @@ const AdminPanel = () => {
     const [newTest, setNewTest] = useState({ title: '', level: 'A2', duration_minutes: 30, is_published: false });
     const [newQuestion, setNewQuestion] = useState({ question_type: 'single_choice', text: '', order: 1, points: 1, passage_text: '' });
     const [newOption, setNewOption] = useState({ text: '', is_correct: false, order: 1 });
+    const [editingQuestionId, setEditingQuestionId] = useState(null);
     const [assignmentGroupIds, setAssignmentGroupIds] = useState([]);
 
     const showSuccess = (text) => {
@@ -216,14 +221,15 @@ const AdminPanel = () => {
         }
 
         try {
-            await createQuestion(token, {
-                ...newQuestion,
-                test: Number(selectedTestId),
-                order: Number(newQuestion.order),
-                points: Number(newQuestion.points)
-            });
+            const payload = { ...newQuestion, test: Number(selectedTestId), order: Number(newQuestion.order), points: Number(newQuestion.points) };
+            if (editingQuestionId) {
+                await updateQuestion(token, editingQuestionId, payload);
+            } else {
+                await createQuestion(token, payload);
+            }
             setNewQuestion({ question_type: 'single_choice', text: '', order: 1, points: 1, passage_text: '' });
-            showSuccess('Вопрос добавлен.');
+            setEditingQuestionId(null);
+            showSuccess(editingQuestionId ? 'Вопрос обновлён.' : 'Вопрос добавлен.');
             const qData = await getQuestions(token, selectedTestId);
             setQuestions(qData);
         } catch (err) {
@@ -314,11 +320,12 @@ const AdminPanel = () => {
                         <div className="admin-field"><label>Длительность (мин)</label><input type="number" value={newTest.duration_minutes} onChange={(e) => setNewTest((p) => ({ ...p, duration_minutes: Number(e.target.value) }))} /></div>
                         <button className="btn-primary" type="submit">Создать тест</button>
                     </form>
+                    {editingQuestionId && <button type="button" className="btn-secondary" onClick={() => { setEditingQuestionId(null); setNewQuestion({ question_type: 'single_choice', text: '', order: 1, points: 1, passage_text: '' }); }}>Отмена редактирования</button>}
 
                     <div className="admin-table-wrapper">
                         <table className="table admin-table">
-                            <thead><tr><th>Тест</th><th>Уровень</th><th>Публикация</th><th>Видимость для студента</th></tr></thead>
-                            <tbody>{tests.map((t) => (<tr key={t.id}><td><button className="btn-secondary" type="button" onClick={() => setSelectedTestId(String(t.id))}>{t.title}</button></td><td>{t.level}</td><td><input type="checkbox" checked={t.is_published} onChange={(e) => handleTestPublishToggle(t.id, e.target.checked)} /></td><td>{t.is_published ? 'Доступен (при назначении)' : 'Скрыт от студентов'}</td></tr>))}</tbody>
+                            <thead><tr><th>Тест</th><th>Уровень</th><th>Публикация</th><th>Видимость для студента</th><th></th></tr></thead>
+                            <tbody>{tests.map((t) => (<tr key={t.id}><td><button className="btn-secondary" type="button" onClick={() => setSelectedTestId(String(t.id))}>{t.title}</button></td><td>{t.level}</td><td><input type="checkbox" checked={t.is_published} onChange={(e) => handleTestPublishToggle(t.id, e.target.checked)} /></td><td>{t.is_published ? 'Доступен (при назначении)' : 'Скрыт от студентов'}</td><td><button className="btn-secondary" type="button" onClick={async () => { if (!window.confirm('Вы уверены, что хотите удалить весь тест? Все вопросы тестирования также будут удалены.')) return; await deleteAdminTest(token, t.id); await loadBaseData(); if (String(t.id) === String(selectedTestId)) { setSelectedTestId(''); setSelectedQuestionId(''); setQuestions([]); setOptions([]); setAssignments([]);} }}>Удалить</button></td></tr>))}</tbody>
                         </table>
                     </div>
                 </div>
@@ -327,18 +334,19 @@ const AdminPanel = () => {
             <div className="admin-grid">
                 <div className="admin-card">
                     <h2 className="admin-card__title">Вопросы и варианты</h2>
-                    <p className="admin-card__subtitle">Выбранный тест ID: {selectedTestId || '—'}</p>
+                    <p className="admin-card__subtitle">Выбранный тест: {tests.find((t) => String(t.id) === String(selectedTestId))?.title || '—'}</p>
                     <form className="admin-form" onSubmit={handleCreateQuestion}>
                         <div className="admin-field"><label>Тип вопроса</label><select value={newQuestion.question_type} onChange={(e) => setNewQuestion((p) => ({ ...p, question_type: e.target.value }))}><option value="single_choice">Single choice</option><option value="reading_single_choice">Reading single choice</option></select></div>
                         <div className="admin-field"><label>Текст вопроса</label><input value={newQuestion.text} onChange={(e) => setNewQuestion((p) => ({ ...p, text: e.target.value }))} /></div>
                         <div className="admin-field"><label>Текст для чтения (опционально)</label><textarea value={newQuestion.passage_text} onChange={(e) => setNewQuestion((p) => ({ ...p, passage_text: e.target.value }))} /></div>
-                        <button className="btn-primary" type="submit">Добавить вопрос</button>
+                        <button className="btn-primary" type="submit">{editingQuestionId ? 'Обновить вопрос' : 'Добавить вопрос'}</button>
                     </form>
+                    {editingQuestionId && <button type="button" className="btn-secondary" onClick={() => { setEditingQuestionId(null); setNewQuestion({ question_type: 'single_choice', text: '', order: 1, points: 1, passage_text: '' }); }}>Отмена редактирования</button>}
 
                     <div className="admin-table-wrapper">
                         <table className="table admin-table">
-                            <thead><tr><th>ID</th><th>Вопрос</th><th>Тип</th></tr></thead>
-                            <tbody>{questions.map((q) => (<tr key={q.id}><td>{q.id}</td><td><button className="btn-secondary" type="button" onClick={() => setSelectedQuestionId(String(q.id))}>{q.text}</button></td><td>{q.question_type}</td></tr>))}</tbody>
+                            <thead><tr><th>ID</th><th>Вопрос</th><th>Тип</th><th>Действия</th></tr></thead>
+                            <tbody>{questions.map((q) => (<tr key={q.id}><td>{q.id}</td><td><button className="btn-secondary" type="button" onClick={() => setSelectedQuestionId(String(q.id))}>{q.text}</button></td><td>{q.question_type}</td><td><button className="btn-secondary" type="button" onClick={() => { setEditingQuestionId(q.id); setNewQuestion({ question_type: q.question_type, text: q.text, order: q.order, points: q.points, passage_text: q.passage_text || '' }); }}>Редактировать</button> <button className="btn-secondary" type="button" onClick={async () => { if (!window.confirm('Вы уверены, что хотите удалить вопрос?')) return; await deleteQuestion(token, q.id); const qData = await getQuestions(token, selectedTestId); setQuestions(qData); if (String(q.id) === selectedQuestionId) { setSelectedQuestionId(''); setOptions([]); } }}>Удалить</button></td></tr>))}</tbody>
                         </table>
                     </div>
 
@@ -347,11 +355,12 @@ const AdminPanel = () => {
                         <div className="admin-field"><label><input type="checkbox" checked={newOption.is_correct} onChange={(e) => setNewOption((p) => ({ ...p, is_correct: e.target.checked }))} /> Правильный</label></div>
                         <button className="btn-secondary" type="submit">Добавить вариант</button>
                     </form>
+                    {editingQuestionId && <button type="button" className="btn-secondary" onClick={() => { setEditingQuestionId(null); setNewQuestion({ question_type: 'single_choice', text: '', order: 1, points: 1, passage_text: '' }); }}>Отмена редактирования</button>}
 
                     <div className="admin-table-wrapper">
                         <table className="table admin-table">
-                            <thead><tr><th>Текст</th><th>Правильный</th></tr></thead>
-                            <tbody>{options.map((o) => (<tr key={o.id}><td>{o.text}</td><td>{o.is_correct ? 'Да' : 'Нет'}</td></tr>))}</tbody>
+                            <thead><tr><th>Текст</th><th>Правильный</th><th></th></tr></thead>
+                            <tbody>{options.map((o) => (<tr key={o.id}><td>{o.text}</td><td>{o.is_correct ? 'Да' : 'Нет'}</td><td><button type="button" className="btn-secondary" onClick={async () => { if (!window.confirm('Вы уверены, что хотите удалить вариант ответа?')) return; await deleteOption(token, o.id); const data = await getOptions(token, selectedQuestionId); setOptions(data); }}>Удалить</button></td></tr>))}</tbody>
                         </table>
                     </div>
                 </div>
@@ -378,6 +387,7 @@ const AdminPanel = () => {
                         </div>
                         <button className="btn-primary" type="submit">Назначить тест</button>
                     </form>
+                    {editingQuestionId && <button type="button" className="btn-secondary" onClick={() => { setEditingQuestionId(null); setNewQuestion({ question_type: 'single_choice', text: '', order: 1, points: 1, passage_text: '' }); }}>Отмена редактирования</button>}
 
                     <div className="admin-table-wrapper">
                         <table className="table admin-table">

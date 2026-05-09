@@ -5,6 +5,21 @@ import { AuthContext } from './auth-context';
 const TOKEN_STORAGE_KEY = 'diploma_auth_token';
 const USER_STORAGE_KEY = 'diploma_auth_user';
 
+const readSavedUser = () => {
+    const savedUser = localStorage.getItem(USER_STORAGE_KEY);
+
+    if (!savedUser) {
+        return null;
+    }
+
+    try {
+        return JSON.parse(savedUser);
+    } catch {
+        localStorage.removeItem(USER_STORAGE_KEY);
+        return null;
+    }
+};
+
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
     const [token, setToken] = useState(() => localStorage.getItem(TOKEN_STORAGE_KEY));
@@ -13,9 +28,9 @@ export const AuthProvider = ({ children }) => {
     useEffect(() => {
         const bootstrap = async () => {
             if (!token) {
-                const savedUser = localStorage.getItem(USER_STORAGE_KEY);
-                if (savedUser) {
-                    setUser(JSON.parse(savedUser));
+                const parsedUser = readSavedUser();
+                if (parsedUser) {
+                    setUser(parsedUser);
                 }
                 setLoading(false);
                 return;

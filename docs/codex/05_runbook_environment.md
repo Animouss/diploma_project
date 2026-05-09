@@ -49,7 +49,7 @@ Example:
 DEBUG=True
 SECRET_KEY=change-me
 ALLOWED_HOSTS=127.0.0.1,localhost
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/diploma_project
+DATABASE_URL=postgresql://postgres:postgres@localhost:5433/diploma_project
 CORS_ALLOWED_ORIGINS=http://localhost:5173
 ```
 

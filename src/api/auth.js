@@ -36,6 +36,8 @@ const DEMO_USERS = {
     }
 };
 
+const isDemoAuthEnabled = import.meta.env.VITE_ENABLE_DEMO_AUTH === 'true';
+
 const authHeader = (token) => ({ Authorization: `Token ${token}` });
 
 const mapBackendUser = (user) => ({
@@ -73,7 +75,7 @@ export const loginRequest = async (login, password) => {
     try {
         return await loginByApi(login, password);
     } catch (error) {
-        if (error?.status) {
+        if (error?.status || !isDemoAuthEnabled) {
             throw error;
         }
 
@@ -86,7 +88,7 @@ export const getCurrentUserRequest = async (token) => {
         throw new Error('Токен отсутствует');
     }
 
-    if (token.startsWith('demo-token-')) {
+    if (isDemoAuthEnabled && token.startsWith('demo-token-')) {
         const login = token.replace('demo-token-', '');
         return DEMO_USERS[login]?.user || null;
     }
@@ -99,7 +101,7 @@ export const getCurrentUserRequest = async (token) => {
 };
 
 export const logoutRequest = async (token) => {
-    if (!token || token.startsWith('demo-token-')) {
+    if (!token || (isDemoAuthEnabled && token.startsWith('demo-token-'))) {
         return;
     }
 

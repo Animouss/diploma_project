@@ -19,6 +19,15 @@ class IsAdminRole(permissions.BasePermission):
         return bool(request.user and request.user.is_authenticated and request.user.role == User.Role.ADMIN)
 
 
+class IsTeacherOrAdminReadOnly(permissions.BasePermission):
+    def has_permission(self, request, view):
+        if not (request.user and request.user.is_authenticated):
+            return False
+        if request.method in permissions.SAFE_METHODS:
+            return request.user.role in (User.Role.ADMIN, User.Role.TEACHER)
+        return request.user.role == User.Role.ADMIN
+
+
 class LoginView(APIView):
     permission_classes = [permissions.AllowAny]
 
@@ -42,7 +51,7 @@ class LogoutView(APIView):
 
 
 class UserListCreateView(ListCreateAPIView):
-    permission_classes = [IsAdminRole]
+    permission_classes = [IsTeacherOrAdminReadOnly]
 
     def get_queryset(self):
         return User.objects.select_related('student_group').order_by('-id')
@@ -54,7 +63,7 @@ class UserListCreateView(ListCreateAPIView):
 
 
 class UserDetailView(RetrieveUpdateDestroyAPIView):
-    permission_classes = [IsAdminRole]
+    permission_classes = [IsTeacherOrAdminReadOnly]
     queryset = User.objects.select_related('student_group').all()
 
     def get_serializer_class(self):
@@ -63,17 +72,19 @@ class UserDetailView(RetrieveUpdateDestroyAPIView):
         return UserCreateUpdateSerializer
 
     def perform_destroy(self, instance):
-        instance.is_active = False
-        instance.save(update_fields=['is_active'])
+        if self.request.user.id == instance.id:
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError({'detail': 'Нельзя удалить текущего авторизованного пользователя.'})
+        instance.delete()
 
 
 class GroupListCreateView(ListCreateAPIView):
-    permission_classes = [IsAdminRole]
+    permission_classes = [IsTeacherOrAdminReadOnly]
     queryset = StudentGroup.objects.order_by('code')
     serializer_class = GroupSerializer
 
 
 class GroupDetailView(RetrieveUpdateDestroyAPIView):
-    permission_classes = [IsAdminRole]
+    permission_classes = [IsTeacherOrAdminReadOnly]
     queryset = StudentGroup.objects.all()
     serializer_class = GroupSerializer
