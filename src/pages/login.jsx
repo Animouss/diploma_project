@@ -62,9 +62,6 @@ const Login = () => {
                 </form>
 
                 {error && <p className="page__hint">{error}</p>}
-                <p className="page__hint">
-                    Демо-доступ: student / student123, teacher / teacher123, admin / admin123.
-                </p>
             </div>
         </div>
     );
