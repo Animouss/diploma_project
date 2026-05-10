@@ -27,18 +27,17 @@ Create `.env` in the repo root if needed:
 VITE_API_BASE_URL=http://localhost:8000/api
 ```
 
-## Planned backend run
-If/when backend is scaffolded:
+## Backend run (PostgreSQL required)
 
 ```bash
 cd backend
+docker compose up -d postgres
 python -m venv .venv
-# Windows:
-.venv\Scripts\activate
-# macOS/Linux:
 source .venv/bin/activate
-
 pip install -r requirements.txt
+cp .env.example .env
+# при необходимости скорректировать DATABASE_URL
+export $(grep -v '^#' .env | xargs)
 python manage.py migrate
 python manage.py runserver
 ```
@@ -50,14 +49,16 @@ Example:
 DEBUG=True
 SECRET_KEY=change-me
 ALLOWED_HOSTS=127.0.0.1,localhost
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/diploma_project
+DATABASE_URL=postgresql://postgres:postgres@localhost:5433/diploma_project
 CORS_ALLOWED_ORIGINS=http://localhost:5173
 ```
 
-## Codex cloud setup behavior
-If backend does not exist yet, the setup should at least:
-- install frontend dependencies
-- verify build/lint commands
-- avoid failing just because backend is not created yet
+Important:
+- PostgreSQL is mandatory for backend startup.
+- SQLite fallback is intentionally disabled.
 
-If backend exists later, setup can expand to install Python dependencies too.
+## Codex cloud setup behavior
+If backend cannot be fully started in the execution environment due missing network/dependency access, the run should still:
+- update backend config/code/docs to require PostgreSQL
+- keep frontend checks/build passing
+- clearly report which backend commands must be executed locally
