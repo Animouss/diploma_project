@@ -1,6 +1,7 @@
 from decimal import Decimal
 
 from django.shortcuts import get_object_or_404
+from django.db import models
 from django.utils import timezone
 from rest_framework import permissions, status
 from rest_framework.generics import ListAPIView, ListCreateAPIView, RetrieveAPIView, RetrieveUpdateDestroyAPIView
@@ -66,7 +67,7 @@ class TestListView(ListAPIView):
         user = self.request.user
 
         if user.role in (User.Role.ADMIN, User.Role.TEACHER):
-            return Test.objects.filter(is_published=True).order_by('title')
+            return Test.objects.order_by('title')
 
         if user.student_group_id:
             return Test.objects.filter(
@@ -101,6 +102,10 @@ class StartAttemptView(TestAccessMixin, APIView):
                 self.permission_denied(request, message='У студента не назначена группа.')
             if not self.get_student_available_tests(user).filter(id=test_id).exists():
                 self.permission_denied(request, message='Тест не назначен вашей группе.')
+
+        finished_attempt = Attempt.objects.filter(user=user, test=test, status=Attempt.AttemptStatus.FINISHED).first()
+        if finished_attempt:
+            return Response({'detail': 'Тест уже пройден. Повторное прохождение недоступно.'}, status=status.HTTP_400_BAD_REQUEST)
 
         attempt = Attempt.objects.filter(user=user, test=test, status=Attempt.AttemptStatus.IN_PROGRESS).first()
         if not attempt:
@@ -279,6 +284,37 @@ class ResultsOverviewView(ListAPIView):
 
         return queryset
 
+
+class DashboardSummaryView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        if user.role == User.Role.STUDENT:
+            available_tests = TestAccessMixin.get_student_available_tests(user) if user.student_group_id else Test.objects.none()
+            finished_attempts = Attempt.objects.filter(user=user, status=Attempt.AttemptStatus.FINISHED).select_related('test').order_by('-finished_at')
+            finished_test_ids = set(finished_attempts.values_list('test_id', flat=True))
+            pending_tests = [t for t in available_tests if t.id not in finished_test_ids]
+            avg = finished_attempts.aggregate(avg=models.Avg('score_percent'))['avg']
+            last = finished_attempts.first()
+            return Response({
+                'role': 'student',
+                'available_count': len(pending_tests),
+                'finished_count': finished_attempts.count(),
+                'average_score': float(avg) if avg is not None else 0,
+                'last_result': StudentResultSerializer(last.result).data if last and hasattr(last, 'result') else None,
+                'pending_tests': AdminTestSerializer(pending_tests, many=True).data,
+            })
+
+        student_users = User.objects.filter(role=User.Role.STUDENT)
+        student_attempts = Attempt.objects.filter(user__in=student_users, status=Attempt.AttemptStatus.FINISHED)
+        avg = student_attempts.aggregate(avg=models.Avg('score_percent'))['avg']
+        return Response({
+            'role': user.role,
+            'students_count': student_users.count(),
+            'students_average_score': float(avg) if avg is not None else 0,
+            'students_finished_attempts': student_attempts.count(),
+        })
 
 class AdminTestListCreateView(ListCreateAPIView):
     permission_classes = [IsTeacherOrAdmin]

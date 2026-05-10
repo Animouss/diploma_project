@@ -27,3 +27,5 @@ export const deleteOption = (token, id) => request(`/admin/options/${id}/`, { me
 
 export const getAssignments = (token, testId) => request(`/admin/assignments/?test_id=${testId}`, { headers: authHeaders(token) });
 export const assignTestToGroups = (token, payload) => request('/admin/assignments/', { method: 'POST', headers: authHeaders(token), body: JSON.stringify(payload) });
+
+export const deleteAssignment = (token, id) => request(`/admin/assignments/${id}/`, { method: 'DELETE', headers: authHeaders(token) });

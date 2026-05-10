@@ -47,3 +47,6 @@ export const getTestDetailRequest = async (token, testId) => {
         questions: (payload.questions || []).map(mapQuestion)
     };
 };
+
+
+export const getDashboardSummaryRequest = (token) => request('/tests/dashboard/summary/', { headers: authHeaders(token) });

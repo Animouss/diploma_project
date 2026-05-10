@@ -19,6 +19,7 @@ import {
     deleteOption,
     deleteQuestion,
     updateQuestion,
+    deleteAssignment,
 } from '../api/admin';
 
 const AdminPanel = () => {
@@ -300,7 +301,7 @@ const AdminPanel = () => {
                         <div className="admin-field"><label>Группа</label><select value={newUser.student_group_id} onChange={(e) => setNewUser((p) => ({ ...p, student_group_id: e.target.value }))}><option value="">—</option>{groups.map((g) => <option key={g.id} value={g.id}>{g.code}</option>)}</select></div>
                         <button className="btn-primary admin-submit" type="submit">Создать пользователя</button>
                     </form>
-                    <a className="btn-secondary" href="/users">Все пользователи</a>
+                    
                 </div>}
 
                 {isAdmin && <div className="admin-card">
@@ -393,8 +394,8 @@ const AdminPanel = () => {
 
                     <div className="admin-table-wrapper">
                         <table className="table admin-table">
-                            <thead><tr><th>Тест</th><th>Группа</th><th>Дата</th></tr></thead>
-                            <tbody>{assignments.map((a) => (<tr key={a.id}><td>{a.test_title}</td><td>{a.group_code}</td><td>{new Date(a.assigned_at).toLocaleDateString('ru-RU')}</td></tr>))}</tbody>
+                            <thead><tr><th>Тест</th><th>Группа</th><th>Дата</th><th></th></tr></thead>
+                            <tbody>{assignments.map((a) => (<tr key={a.id}><td>{a.test_title}</td><td>{a.group_code}</td><td>{new Date(a.assigned_at).toLocaleDateString('ru-RU')}</td><td><button className="btn-secondary" type="button" onClick={async ()=>{ if(!window.confirm('Вы уверены, что хотите снять тестирование для этой группы?')) return; await deleteAssignment(token,a.id); showSuccess('Назначение снято.'); const data = await getAssignments(token, selectedTestId); setAssignments(data); }}>Снять</button></td></tr>))}</tbody>
                         </table>
                     </div>
                 </div>

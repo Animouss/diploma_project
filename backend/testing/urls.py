@@ -20,9 +20,11 @@ from testing.views import (
     StartAttemptView,
     TestDetailView,
     TestListView,
+    DashboardSummaryView,
 )
 
 urlpatterns = [
+    path('dashboard/summary/', DashboardSummaryView.as_view(), name='dashboard-summary'),
     path('', TestListView.as_view(), name='tests-list'),
     path('<int:pk>/', TestDetailView.as_view(), name='tests-detail'),
     path('<int:test_id>/start/', StartAttemptView.as_view(), name='tests-start-attempt'),

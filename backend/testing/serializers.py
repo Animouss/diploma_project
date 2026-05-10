@@ -11,8 +11,16 @@ class TestListSerializer(serializers.ModelSerializer):
         model = Test
         fields = ('id', 'title', 'level', 'status', 'duration')
 
-    def get_status(self, _obj):
-        return 'Не начат'
+    def get_status(self, obj):
+        user = self.context.get('request').user if self.context.get('request') else None
+        if not user or user.role != 'student':
+            return 'Не начат'
+        attempt = Attempt.objects.filter(user=user, test=obj).order_by('-started_at').first()
+        if not attempt:
+            return 'Не начат'
+        if attempt.status == Attempt.AttemptStatus.FINISHED:
+            return 'Пройден'
+        return 'В процессе'
 
     def get_duration(self, obj):
         return f'{obj.duration_minutes} мин'
