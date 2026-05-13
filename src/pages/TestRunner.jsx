@@ -64,6 +64,11 @@ const TestRunner = () => {
 
             try {
                 const attempt = await startAttemptRequest(token, id);
+                if (attempt?.status === 'finished' || attempt?.time_expired) {
+                    setIsFinished(true);
+                    setResultSummary(attempt.result || attempt);
+                    return;
+                }
                 setAttemptId(attempt.attemptId);
                 setTest(attempt.test);
                 setSecondsLeft(attempt.remainingSeconds || (attempt.test.durationMinutes || 10) * 60);
@@ -92,7 +97,7 @@ const TestRunner = () => {
 
         try {
             const summary = await finishAttemptRequest(token, attemptId);
-            setResultSummary(summary.result);
+            setResultSummary(summary.result || summary);
             setIsFinished(true);
         } catch (err) {
             setFinishError(err.message || 'Не удалось завершить попытку.');
@@ -151,7 +156,11 @@ const TestRunner = () => {
 
         if (token && !token.startsWith('demo-token-') && attemptId) {
             try {
-                await saveAttemptAnswerRequest(token, attemptId, currentQuestion.id, optionId);
+                const res = await saveAttemptAnswerRequest(token, attemptId, currentQuestion.id, optionId);
+                if (res?.time_expired) {
+                    setResultSummary(res.result || res);
+                    setIsFinished(true);
+                }
             } catch (err) {
                 setFinishError(err.message || 'Не удалось сохранить ответ.');
             }
@@ -278,8 +287,7 @@ const TestRunner = () => {
                     <h2 className="test-result__title">Тест завершён</h2>
                     {resultSummary ? (
                         <p className="test-result__text">
-                            Результат: {resultSummary.score_percent}% · Уровень: {resultSummary.level_result} ·{' '}
-                            {resultSummary.passed ? 'Зачёт' : 'Незачёт'}.
+                            Результат: {resultSummary.score_percent}% · Уровень подготовки: {resultSummary.preparation_level || '—'}.
                         </p>
                     ) : (
                         <p className="test-result__text">

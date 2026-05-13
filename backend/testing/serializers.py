@@ -1,5 +1,14 @@
 from rest_framework import serializers
 
+def get_preparation_level(score_percent):
+    score = float(score_percent or 0)
+    if score >= 80:
+        return "Продвинутый"
+    if score >= 60:
+        return "Академический"
+    return "Базовый"
+
+
 from testing.models import Answer, AnswerOption, Attempt, Question, ReadingPassage, Result, Test, TestAssignment
 
 
@@ -65,10 +74,14 @@ class SaveAnswerSerializer(serializers.Serializer):
 class AttemptSummarySerializer(serializers.ModelSerializer):
     test_title = serializers.CharField(source='test.title', read_only=True)
     result = serializers.SerializerMethodField()
+    preparation_level = serializers.SerializerMethodField()
 
     class Meta:
         model = Attempt
-        fields = ('id', 'test', 'test_title', 'status', 'started_at', 'finished_at', 'score_percent', 'result')
+        fields = ('id', 'test', 'test_title', 'status', 'started_at', 'finished_at', 'score_percent', 'preparation_level', 'result')
+
+    def get_preparation_level(self, obj):
+        return get_preparation_level(obj.score_percent)
 
     def get_result(self, obj):
         if not hasattr(obj, 'result'):
@@ -88,6 +101,7 @@ class StudentResultSerializer(serializers.ModelSerializer):
     user_group = serializers.CharField(source='attempt.user.student_group.code', read_only=True, default='—')
     attempt_id = serializers.IntegerField(source='attempt.id', read_only=True)
     finished_at = serializers.DateTimeField(source='attempt.finished_at', read_only=True)
+    preparation_level = serializers.SerializerMethodField()
 
     class Meta:
         model = Result
@@ -103,9 +117,13 @@ class StudentResultSerializer(serializers.ModelSerializer):
             'level_result',
             'passed',
             'finished_at',
+            'preparation_level',
             'created_at',
         )
 
+
+    def get_preparation_level(self, obj):
+        return get_preparation_level(obj.score_percent)
 
 class AdminTestSerializer(serializers.ModelSerializer):
     class Meta:
@@ -198,6 +216,7 @@ class ResultDetailSerializer(serializers.ModelSerializer):
     test_title = serializers.CharField(source='attempt.test.title', read_only=True)
     student_name = serializers.CharField(source='attempt.user.full_name', read_only=True)
     questions = serializers.SerializerMethodField()
+    preparation_level = serializers.SerializerMethodField()
 
     class Meta:
         model = Result
@@ -208,9 +227,13 @@ class ResultDetailSerializer(serializers.ModelSerializer):
             'score_percent',
             'level_result',
             'passed',
+            'preparation_level',
             'created_at',
             'questions',
         )
+
+    def get_preparation_level(self, obj):
+        return get_preparation_level(obj.score_percent)
 
     def get_questions(self, obj):
         attempt = obj.attempt

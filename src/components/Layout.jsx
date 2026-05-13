@@ -22,8 +22,8 @@ const Layout = () => {
                 <div className="content">
                     <Routes>
                         <Route path="/" element={<Dashboard />} />
-                        <Route path="/tests" element={<Tests />} />
-                        <Route path="/tests/:id" element={<TestRunner />} />
+                        <Route path="/tests" element={<ProtectedRoute roles={['student']}><Tests /></ProtectedRoute>} />
+                        <Route path="/tests/:id" element={<ProtectedRoute roles={['student']}><TestRunner /></ProtectedRoute>} />
                         <Route path="/results" element={<Results />} />
                         <Route
                             path="/admin"

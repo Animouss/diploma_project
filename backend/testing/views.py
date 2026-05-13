@@ -41,6 +41,42 @@ class IsTeacherOrAdmin(permissions.BasePermission):
         )
 
 
+
+
+def get_remaining_seconds(attempt):
+    duration_seconds = int(attempt.test.duration_minutes * 60)
+    elapsed = int((timezone.now() - attempt.started_at).total_seconds())
+    return max(0, duration_seconds - elapsed)
+
+
+def is_attempt_time_expired(attempt):
+    return get_remaining_seconds(attempt) <= 0
+
+
+def finish_attempt(attempt):
+    if attempt.status == Attempt.AttemptStatus.FINISHED:
+        return attempt, getattr(attempt, 'result', None)
+
+    questions = list(attempt.test.questions.all())
+    total_points = sum(q.points for q in questions) or 1
+    score_points = Decimal('0')
+    answers_by_question = {a.question_id: a.selected_option_id for a in Answer.objects.filter(attempt=attempt)}
+    for question in questions:
+        correct_option = question.options.filter(is_correct=True).first()
+        if correct_option and answers_by_question.get(question.id) == correct_option.id:
+            score_points += Decimal(question.points)
+    score_percent = ((score_points / Decimal(total_points)) * Decimal('100')).quantize(Decimal('0.01'))
+    attempt.score_percent = score_percent
+    attempt.status = Attempt.AttemptStatus.FINISHED
+    attempt.finished_at = timezone.now()
+    attempt.save(update_fields=['score_percent', 'status', 'finished_at'])
+    result, _ = Result.objects.update_or_create(attempt=attempt, defaults={
+        'score_percent': score_percent,
+        'level_result': attempt.test.level,
+        'passed': score_percent >= Decimal('60.00'),
+    })
+    return attempt, result
+
 class TestAccessMixin:
     @staticmethod
     def user_can_access_test(user, test):
@@ -108,11 +144,18 @@ class StartAttemptView(TestAccessMixin, APIView):
             return Response({'detail': 'Тест уже пройден. Повторное прохождение недоступно.'}, status=status.HTTP_400_BAD_REQUEST)
 
         attempt = Attempt.objects.filter(user=user, test=test, status=Attempt.AttemptStatus.IN_PROGRESS).first()
+        if attempt and is_attempt_time_expired(attempt):
+            attempt, result = finish_attempt(attempt)
+            payload = AttemptSummarySerializer(attempt).data
+            payload['result_id'] = result.id if result else None
+            payload['time_expired'] = True
+            return Response(payload, status=status.HTTP_200_OK)
+
         if not attempt:
             attempt = Attempt.objects.create(user=user, test=test)
 
         payload = AttemptExecutionSerializer(attempt).data
-        payload['remaining_seconds'] = test.duration_minutes * 60
+        payload['remaining_seconds'] = get_remaining_seconds(attempt)
         return Response(payload, status=status.HTTP_200_OK)
 
 
@@ -128,7 +171,16 @@ class AttemptDetailView(APIView):
         if request.user.role == User.Role.STUDENT and attempt.user_id != request.user.id:
             self.permission_denied(request, message='Нет доступа к попытке.')
 
-        return Response(AttemptExecutionSerializer(attempt).data)
+        if attempt.status == Attempt.AttemptStatus.IN_PROGRESS and is_attempt_time_expired(attempt):
+            attempt, result = finish_attempt(attempt)
+            payload = AttemptSummarySerializer(attempt).data
+            payload['result_id'] = result.id if result else None
+            payload['time_expired'] = True
+            return Response(payload)
+
+        payload = AttemptExecutionSerializer(attempt).data
+        payload['remaining_seconds'] = get_remaining_seconds(attempt) if attempt.status == Attempt.AttemptStatus.IN_PROGRESS else 0
+        return Response(payload)
 
 
 class SaveAttemptAnswerView(APIView):
@@ -139,6 +191,14 @@ class SaveAttemptAnswerView(APIView):
 
         if attempt.status != Attempt.AttemptStatus.IN_PROGRESS:
             return Response({'detail': 'Попытка уже завершена.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if is_attempt_time_expired(attempt):
+            attempt, result = finish_attempt(attempt)
+            payload = AttemptSummarySerializer(attempt).data
+            payload['result_id'] = result.id if result else None
+            payload['detail'] = 'Время тестирования истекло. Попытка завершена автоматически.'
+            payload['time_expired'] = True
+            return Response(payload, status=status.HTTP_400_BAD_REQUEST)
 
         if request.user.role == User.Role.STUDENT and attempt.user_id != request.user.id:
             self.permission_denied(request, message='Нет доступа к попытке.')
@@ -181,42 +241,9 @@ class FinishAttemptView(APIView):
         if request.user.role == User.Role.STUDENT and attempt.user_id != request.user.id:
             self.permission_denied(request, message='Нет доступа к попытке.')
 
-        if attempt.status == Attempt.AttemptStatus.FINISHED:
-            return Response(AttemptSummarySerializer(attempt).data, status=status.HTTP_200_OK)
-
-        questions = list(attempt.test.questions.all())
-        total_points = sum(q.points for q in questions) or 1
-        score_points = Decimal('0')
-
-        answers_by_question = {
-            answer.question_id: answer.selected_option_id
-            for answer in Answer.objects.filter(attempt=attempt)
-        }
-
-        for question in questions:
-            correct_option = question.options.filter(is_correct=True).first()
-            if correct_option and answers_by_question.get(question.id) == correct_option.id:
-                score_points += Decimal(question.points)
-
-        score_percent = (score_points / Decimal(total_points)) * Decimal('100')
-        score_percent = score_percent.quantize(Decimal('0.01'))
-
-        attempt.score_percent = score_percent
-        attempt.status = Attempt.AttemptStatus.FINISHED
-        attempt.finished_at = timezone.now()
-        attempt.save(update_fields=['score_percent', 'status', 'finished_at'])
-
-        result, _ = Result.objects.update_or_create(
-            attempt=attempt,
-            defaults={
-                'score_percent': score_percent,
-                'level_result': attempt.test.level,
-                'passed': score_percent >= Decimal('60.00'),
-            },
-        )
-
+        attempt, result = finish_attempt(attempt)
         payload = AttemptSummarySerializer(attempt).data
-        payload['result_id'] = result.id
+        payload['result_id'] = result.id if result else None
         return Response(payload, status=status.HTTP_200_OK)
 
 
@@ -232,7 +259,9 @@ class AttemptSummaryView(APIView):
         if request.user.role == User.Role.STUDENT and attempt.user_id != request.user.id:
             self.permission_denied(request, message='Нет доступа к попытке.')
 
-        return Response(AttemptSummarySerializer(attempt).data)
+        payload = AttemptSummarySerializer(attempt).data
+        payload['remaining_seconds'] = get_remaining_seconds(attempt) if attempt.status == Attempt.AttemptStatus.IN_PROGRESS else 0
+        return Response(payload)
 
 
 class MyResultsView(ListAPIView):

@@ -41,7 +41,11 @@ export const getAttemptRequest = async (token, attemptId) => {
         headers: authHeaders(token)
     });
 
-    return mapAttemptPayload(payload);
+    if (!payload?.test) {
+        return payload;
+    }
+
+    return { ...mapAttemptPayload(payload), remainingSeconds: payload.remaining_seconds };
 };
 
 export const saveAttemptAnswerRequest = async (token, attemptId, questionId, optionId) =>

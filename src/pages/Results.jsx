@@ -162,7 +162,7 @@ const Results = () => {
                     <th>Тест</th>
                     <th>Результат</th>
                     <th>Уровень</th>
-                    <th>Статус</th>
+                    <th>Уровень подготовки</th>
                     <th></th>
                 </tr>
                 </thead>
@@ -174,7 +174,7 @@ const Results = () => {
                         <td>{row.test_title}</td>
                         <td>{row.score_percent}%</td>
                         <td>{row.level_result}</td>
-                        <td>{row.passed ? 'Зачёт' : 'Незачёт'}</td>
+                        <td>{row.preparation_level || '—'}</td>
                         <td>
                             <button className="btn-secondary" type="button" onClick={() => openResultDetail(row.id)}>
                                 Открыть
