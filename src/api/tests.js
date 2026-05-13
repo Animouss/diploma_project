@@ -7,7 +7,7 @@ const authHeaders = (token) => ({
 const mapTest = (test) => ({
     id: test.id,
     title: test.title,
-    level: test.level,
+    comment: test.comment || test.level || "—",
     status: test.status || 'Не начат',
     duration: test.duration || `${test.duration_minutes} мин`
 });

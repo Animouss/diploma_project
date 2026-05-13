@@ -4,7 +4,7 @@ from django.db import models
 
 class Test(models.Model):
     title = models.CharField(max_length=255)
-    level = models.CharField(max_length=10)
+    comment = models.CharField(max_length=80, blank=True, default='')
     duration_minutes = models.PositiveIntegerField(default=30)
     is_published = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)

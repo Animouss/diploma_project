@@ -72,7 +72,7 @@ def finish_attempt(attempt):
     attempt.save(update_fields=['score_percent', 'status', 'finished_at'])
     result, _ = Result.objects.update_or_create(attempt=attempt, defaults={
         'score_percent': score_percent,
-        'level_result': attempt.test.level,
+        'level_result': '',
         'passed': score_percent >= Decimal('60.00'),
     })
     return attempt, result
@@ -303,6 +303,7 @@ class ResultsOverviewView(ListAPIView):
         test_id = self.request.query_params.get('test_id')
         group_id = self.request.query_params.get('group_id')
         student_id = self.request.query_params.get('student_id')
+        student_search = self.request.query_params.get('student_search')
 
         if test_id:
             queryset = queryset.filter(attempt__test_id=test_id)
@@ -310,6 +311,8 @@ class ResultsOverviewView(ListAPIView):
             queryset = queryset.filter(attempt__user__student_group_id=group_id)
         if student_id:
             queryset = queryset.filter(attempt__user_id=student_id)
+        if student_search:
+            queryset = queryset.filter(models.Q(attempt__user__full_name__icontains=student_search) | models.Q(attempt__user__username__icontains=student_search))
 
         return queryset
 

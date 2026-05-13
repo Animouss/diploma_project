@@ -623,3 +623,5 @@ body {
 .admin-table td {
     vertical-align: middle;
 }
+
+.test-comment-cell{max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}

@@ -47,7 +47,7 @@ const AdminPanel = () => {
     });
 
     const [newGroup, setNewGroup] = useState({ name: '', code: '' });
-    const [newTest, setNewTest] = useState({ title: '', level: 'A2', duration_minutes: 30, is_published: false });
+    const [newTest, setNewTest] = useState({ title: '', comment: '', duration_minutes: 30, is_published: false });
     const [newQuestion, setNewQuestion] = useState({ question_type: 'single_choice', text: '', order: 1, points: 1, passage_text: '' });
     const [newOption, setNewOption] = useState({ text: '', is_correct: false, order: 1 });
     const [editingQuestionId, setEditingQuestionId] = useState(null);
@@ -198,7 +198,7 @@ const AdminPanel = () => {
 
         try {
             await createAdminTest(token, newTest);
-            setNewTest({ title: '', level: 'A2', duration_minutes: 30, is_published: false });
+            setNewTest({ title: '', comment: '', duration_minutes: 30, is_published: false });
             showSuccess('Тест создан.');
             await loadBaseData();
         } catch (err) {
@@ -319,7 +319,7 @@ const AdminPanel = () => {
                     <h2 className="admin-card__title">Тесты</h2>
                     <form className="admin-form" onSubmit={handleCreateTest}>
                         <div className="admin-field"><label>Название теста</label><input value={newTest.title} onChange={(e) => setNewTest((p) => ({ ...p, title: e.target.value }))} /></div>
-                        <div className="admin-field"><label>Уровень</label><input value={newTest.level} onChange={(e) => setNewTest((p) => ({ ...p, level: e.target.value }))} /></div>
+                        <div className="admin-field"><label>Комментарий</label><input maxLength={80} placeholder="Например: Вступительный тест" value={newTest.comment} onChange={(e) => setNewTest((p) => ({ ...p, comment: e.target.value }))} /><small>До 80 символов</small></div>
                         <div className="admin-field"><label>Длительность (мин)</label><input type="number" value={newTest.duration_minutes} onChange={(e) => setNewTest((p) => ({ ...p, duration_minutes: Number(e.target.value) }))} /></div>
                         <button className="btn-primary" type="submit">Создать тест</button>
                     </form>
@@ -327,8 +327,8 @@ const AdminPanel = () => {
 
                     <div className="admin-table-wrapper">
                         <table className="table admin-table">
-                            <thead><tr><th>Тест</th><th>Уровень</th><th>Публикация</th><th>Видимость для студента</th><th></th></tr></thead>
-                            <tbody>{tests.map((t) => (<tr key={t.id}><td><button className="btn-secondary" type="button" onClick={() => setSelectedTestId(String(t.id))}>{t.title}</button></td><td>{t.level}</td><td><input type="checkbox" checked={t.is_published} onChange={(e) => handleTestPublishToggle(t.id, e.target.checked)} /></td><td>{t.is_published ? 'Доступен (при назначении)' : 'Скрыт от студентов'}</td><td><button className="btn-secondary" type="button" onClick={async () => { if (!window.confirm('Вы уверены, что хотите удалить весь тест? Все вопросы тестирования также будут удалены.')) return; await deleteAdminTest(token, t.id); await loadBaseData(); if (String(t.id) === String(selectedTestId)) { setSelectedTestId(''); setSelectedQuestionId(''); setQuestions([]); setOptions([]); setAssignments([]);} }}>Удалить</button></td></tr>))}</tbody>
+                            <thead><tr><th>Тест</th><th>Комментарий</th><th>Публикация</th><th>Видимость для студента</th><th></th></tr></thead>
+                            <tbody>{tests.map((t) => (<tr key={t.id}><td><button className="btn-secondary" type="button" onClick={() => setSelectedTestId(String(t.id))}>{t.title}</button></td><td title={t.comment || "—"} className="test-comment-cell">{t.comment || "—"}</td><td><input type="checkbox" checked={t.is_published} onChange={(e) => handleTestPublishToggle(t.id, e.target.checked)} /></td><td>{t.is_published ? 'Доступен (при назначении)' : 'Скрыт от студентов'}</td><td><button className="btn-secondary" type="button" onClick={async () => { if (!window.confirm('Вы уверены, что хотите удалить весь тест? Все вопросы тестирования также будут удалены.')) return; await deleteAdminTest(token, t.id); await loadBaseData(); if (String(t.id) === String(selectedTestId)) { setSelectedTestId(''); setSelectedQuestionId(''); setQuestions([]); setOptions([]); setAssignments([]);} }}>Удалить</button></td></tr>))}</tbody>
                         </table>
                     </div>
                 </div>

@@ -23,8 +23,8 @@ const Results = () => {
 
     const [tests, setTests] = useState([]);
     const [groups, setGroups] = useState([]);
-    const [students, setStudents] = useState([]);
-    const [filters, setFilters] = useState({ test_id: '', group_id: '', student_id: '' });
+    const [filters, setFilters] = useState({ test_id: '', group_id: '', student_search: '' });
+    const [searchInput, setSearchInput] = useState('');
 
     const [selectedResult, setSelectedResult] = useState(null);
     const [detailLoading, setDetailLoading] = useState(false);
@@ -46,7 +46,7 @@ const Results = () => {
 
                 setTests(testsData || []);
                 setGroups(groupsData || []);
-                setStudents((usersData || []).filter((u) => u.role === 'student'));
+                
             } catch {
                 // filters are optional for UX; keep page usable without blocking
             }
@@ -54,6 +54,13 @@ const Results = () => {
 
         loadFilterData();
     }, [isStudent, token]);
+
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setFilters((prev) => ({ ...prev, student_search: searchInput.trim() }));
+        }, 400);
+        return () => clearTimeout(timer);
+    }, [searchInput]);
 
     useEffect(() => {
         const load = async () => {
@@ -138,21 +145,13 @@ const Results = () => {
                         </div>
                         <div className="admin-field">
                             <label>Студент</label>
-                            <select
-                                value={filters.student_id}
-                                onChange={(e) => setFilters((prev) => ({ ...prev, student_id: e.target.value }))}
-                            >
-                                <option value="">Все</option>
-                                {students.map((student) => (
-                                    <option key={student.id} value={student.id}>{student.full_name || student.username}</option>
-                                ))}
-                            </select>
+                            <input value={searchInput} onChange={(e) => setSearchInput(e.target.value)} placeholder="Введите ФИО или логин студента" />
                         </div>
                     </div>
                 </div>
             )}
 
-            {!error && rows.length === 0 && <p className="page__hint">Результаты пока отсутствуют.</p>}
+            {!error && rows.length === 0 && <p className="page__hint">Результаты не найдены.</p>}
 
             <table className="table">
                 <thead>

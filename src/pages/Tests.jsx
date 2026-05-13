@@ -16,7 +16,7 @@ const Tests = () => {
 
   if (user?.role !== 'student') return <div className="page"><h1 className="page__title">Мои тесты</h1><p className="page__hint">Для преподавателя используйте раздел «Тесты» в панели управления.</p></div>;
 
-  return <div className="page"><h1 className="page__title">Мои тесты</h1>{hint && <p className="page__hint">{hint}</p>}<table className="table"><thead><tr><th>Название теста</th><th>Уровень</th><th>Статус</th><th>Время</th><th></th></tr></thead><tbody>{tests.map((test)=><tr key={test.id}><td>{test.title}</td><td>{test.level}</td><td>{test.status}</td><td>{test.duration}</td><td>{test.status==='Пройден' ? <span className="page__hint">Пройден</span> : <button className="btn-primary" onClick={()=>navigate(`/tests/${test.id}`)}>{test.status === 'В процессе' ? 'Продолжить' : 'Начать'}</button>}</td></tr>)}</tbody></table></div>;
+  return <div className="page"><h1 className="page__title">Мои тесты</h1>{hint && <p className="page__hint">{hint}</p>}<table className="table"><thead><tr><th>Название теста</th><th>Комментарий</th><th>Статус</th><th>Время</th><th></th></tr></thead><tbody>{tests.map((test)=><tr key={test.id}><td>{test.title}</td><td>{test.comment || "—"}</td><td>{test.status}</td><td>{test.duration}</td><td>{test.status==='Пройден' ? <span className="page__hint">Пройден</span> : <button className="btn-primary" onClick={()=>navigate(`/tests/${test.id}`)}>{test.status === 'В процессе' ? 'Продолжить' : 'Начать'}</button>}</td></tr>)}</tbody></table></div>;
 };
 
 export default Tests;

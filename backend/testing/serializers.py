@@ -18,7 +18,7 @@ class TestListSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Test
-        fields = ('id', 'title', 'level', 'status', 'duration')
+        fields = ('id', 'title', 'comment', 'status', 'duration')
 
     def get_status(self, obj):
         user = self.context.get('request').user if self.context.get('request') else None
@@ -55,7 +55,7 @@ class TestDetailSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Test
-        fields = ('id', 'title', 'level', 'duration_minutes', 'questions')
+        fields = ('id', 'title', 'comment', 'duration_minutes', 'questions')
 
 
 class AttemptExecutionSerializer(serializers.ModelSerializer):
@@ -128,7 +128,7 @@ class StudentResultSerializer(serializers.ModelSerializer):
 class AdminTestSerializer(serializers.ModelSerializer):
     class Meta:
         model = Test
-        fields = ('id', 'title', 'level', 'duration_minutes', 'is_published')
+        fields = ('id', 'title', 'comment', 'duration_minutes', 'is_published')
 
 
 class AdminQuestionSerializer(serializers.ModelSerializer):

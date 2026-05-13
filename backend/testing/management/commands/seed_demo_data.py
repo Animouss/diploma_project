@@ -22,7 +22,7 @@ class Command(BaseCommand):
         test, _ = Test.objects.get_or_create(
             title='Демонстрационный тест по русскому языку',
             defaults={
-                'level': 'B1',
+                'comment': 'Вступительный тест',
                 'duration_minutes': 30,
                 'is_published': True,
             },
@@ -97,7 +97,7 @@ class Command(BaseCommand):
             attempt=attempt,
             defaults={
                 'score_percent': Decimal('100.00'),
-                'level_result': test.level,
+                'level_result': '',
                 'passed': True,
             },
         )
