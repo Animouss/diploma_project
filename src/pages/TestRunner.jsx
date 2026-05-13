@@ -1,100 +1,181 @@
-import React, { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { useAuth } from '../context/auth-context';
+import {
+    finishAttemptRequest,
+    saveAttemptAnswerRequest,
+    startAttemptRequest,
+} from '../api/attempts';
 
-// Временный мок-тест. Потом можно заменять данными с бэка.
-const mockTestsById = {
-    1: {
-        title: "Лексика и грамматика (демо)",
-        durationMinutes: 10,
-        questions: [
-            {
-                id: 1,
-                text: "Выберите правильный вариант: Он ___ в университет каждое утро.",
-                options: [
-                    "ходит",
-                    "ездит",
-                    "идёт",
-                    "приходит"
-                ],
-                correctIndex: 0 // пока просто храним, потом можно использовать для проверки
-            },
-            {
-                id: 2,
-                text: "Укажите предложение с правильным управлением.",
-                options: [
-                    "Я жду тебя в течение час.",
-                    "Я жду тебя в течение часа.",
-                    "Я жду тебя в течение часов.",
-                    "Я жду тебя течение часа."
-                ],
-                correctIndex: 1
-            },
-            {
-                id: 3,
-                text: "Какой падеж используется после предлога «о» (говорить о ...)?",
-                options: [
-                    "именительный",
-                    "родительный",
-                    "дательный",
-                    "предложный"
-                ],
-                correctIndex: 3
-            }
-        ]
-    }
+const demoTest = {
+    id: 1,
+    title: 'Лексика и грамматика (демо)',
+    durationMinutes: 10,
+    questions: [
+        {
+            id: 1,
+            questionType: 'single_choice',
+            text: 'Выберите правильный вариант: Он ___ в университет каждое утро.',
+            passageText: '',
+            options: [
+                { id: 11, text: 'ходит' },
+                { id: 12, text: 'ездит' },
+                { id: 13, text: 'идёт' },
+                { id: 14, text: 'приходит' }
+            ]
+        }
+    ]
 };
 
 const TestRunner = () => {
-    const { id } = useParams();              // берём id теста из URL
+    const { id } = useParams();
     const navigate = useNavigate();
-    const test = mockTestsById[id] || mockTestsById[1];
+    const { token } = useAuth();
 
+    const [attemptId, setAttemptId] = useState(null);
+    const [test, setTest] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [loadError, setLoadError] = useState('');
     const [currentIndex, setCurrentIndex] = useState(0);
-    const [answers, setAnswers] = useState({}); // { questionId: selectedOptionIndex }
-    const [secondsLeft, setSecondsLeft] = useState(
-        (test.durationMinutes || 10) * 60
-    );
+    const [answers, setAnswers] = useState({});
+    const [secondsLeft, setSecondsLeft] = useState(0);
     const [isFinished, setIsFinished] = useState(false);
+    const [resultSummary, setResultSummary] = useState(null);
+    const [finishError, setFinishError] = useState('');
+    const finishingRef = useRef(false);
 
-    const currentQuestion = test.questions[currentIndex];
-
-    // Таймер
     useEffect(() => {
-        if (isFinished) return;
+        const bootstrap = async () => {
+            setLoading(true);
+            setLoadError('');
+            setFinishError('');
+            setCurrentIndex(0);
+            setAnswers({});
+            setIsFinished(false);
+            setResultSummary(null);
+            setAttemptId(null);
+
+            if (!token || token.startsWith('demo-token-')) {
+                setTest(demoTest);
+                setSecondsLeft((demoTest.durationMinutes || 10) * 60);
+                setLoading(false);
+                return;
+            }
+
+            try {
+                const attempt = await startAttemptRequest(token, id);
+                if (attempt?.status === 'finished' || attempt?.time_expired) {
+                    setIsFinished(true);
+                    setResultSummary(attempt.result || attempt);
+                    return;
+                }
+                setAttemptId(attempt.attemptId);
+                setTest(attempt.test);
+                setSecondsLeft(attempt.remainingSeconds || (attempt.test.durationMinutes || 10) * 60);
+            } catch (err) {
+                setLoadError(err.message || 'Не удалось запустить попытку.');
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        bootstrap();
+    }, [id, token]);
+
+    const handleFinishAttempt = useCallback(async () => {
+        if (finishingRef.current || isFinished) {
+            return;
+        }
+
+        finishingRef.current = true;
+
+        if (!token || token.startsWith('demo-token-') || !attemptId) {
+            setIsFinished(true);
+            finishingRef.current = false;
+            return;
+        }
+
+        try {
+            const summary = await finishAttemptRequest(token, attemptId);
+            setResultSummary(summary.result || summary);
+            setIsFinished(true);
+        } catch (err) {
+            setFinishError(err.message || 'Не удалось завершить попытку.');
+        } finally {
+            finishingRef.current = false;
+        }
+    }, [attemptId, isFinished, token]);
+
+    useEffect(() => {
+        if (loading || isFinished || !test) {
+            return;
+        }
 
         const timer = setInterval(() => {
             setSecondsLeft((prev) => {
                 if (prev <= 1) {
                     clearInterval(timer);
-                    setIsFinished(true);
+                    handleFinishAttempt();
                     return 0;
                 }
+
                 return prev - 1;
             });
         }, 1000);
 
         return () => clearInterval(timer);
-    }, [isFinished]);
+    }, [loading, isFinished, test, handleFinishAttempt]);
+
+    const handleExit = () => navigate('/tests');
 
     const formatTime = (totalSeconds) => {
         const m = Math.floor(totalSeconds / 60);
         const s = totalSeconds % 60;
-        return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+        return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
     };
 
-    const handleSelectOption = (optionIndex) => {
+    const currentQuestion = useMemo(() => test?.questions?.[currentIndex] || null, [test, currentIndex]);
+
+    const progressPercent = useMemo(() => {
+        if (!test?.questions?.length) {
+            return 0;
+        }
+
+        return Math.round(((currentIndex + 1) / test.questions.length) * 100);
+    }, [test, currentIndex]);
+
+    const handleSelectOption = async (optionId) => {
+        if (!currentQuestion) {
+            return;
+        }
+
         setAnswers((prev) => ({
             ...prev,
-            [currentQuestion.id]: optionIndex
+            [currentQuestion.id]: optionId,
         }));
+
+        if (token && !token.startsWith('demo-token-') && attemptId) {
+            try {
+                const res = await saveAttemptAnswerRequest(token, attemptId, currentQuestion.id, optionId);
+                if (res?.time_expired) {
+                    setResultSummary(res.result || res);
+                    setIsFinished(true);
+                }
+            } catch (err) {
+                setFinishError(err.message || 'Не удалось сохранить ответ.');
+            }
+        }
     };
 
     const handleNext = () => {
+        if (!test) {
+            return;
+        }
+
         if (currentIndex < test.questions.length - 1) {
             setCurrentIndex((prev) => prev + 1);
         } else {
-            // последний вопрос — завершаем
-            setIsFinished(true);
+            handleFinishAttempt();
         }
     };
 
@@ -104,25 +185,33 @@ const TestRunner = () => {
         }
     };
 
-    const handleExit = () => {
-        navigate("/tests");
-    };
+    if (loading) {
+        return <div className="page">Загрузка теста...</div>;
+    }
 
-    // простейший подсчёт баллов после завершения
-    const calculateScore = () => {
-        let correct = 0;
-        test.questions.forEach((q) => {
-            if (answers[q.id] === q.correctIndex) {
-                correct += 1;
-            }
-        });
-        const percent = Math.round((correct / test.questions.length) * 100);
-        return { correct, percent };
-    };
+    if (loadError) {
+        return (
+            <div className="page">
+                <h1 className="page__title">Тест недоступен</h1>
+                <p className="page__subtitle">{loadError}</p>
+                <button className="btn-primary" onClick={handleExit} type="button">
+                    Вернуться к списку тестов
+                </button>
+            </div>
+        );
+    }
 
-    const progressPercent = Math.round(
-        ((currentIndex + 1) / test.questions.length) * 100
-    );
+    if (!test || !test.questions?.length) {
+        return (
+            <div className="page">
+                <h1 className="page__title">Тест недоступен</h1>
+                <p className="page__subtitle">В тесте пока нет вопросов.</p>
+                <button className="btn-primary" onClick={handleExit} type="button">
+                    Вернуться к списку тестов
+                </button>
+            </div>
+        );
+    }
 
     return (
         <div className="page">
@@ -130,63 +219,50 @@ const TestRunner = () => {
             <p className="page__subtitle">
                 Вопрос {currentIndex + 1} из {test.questions.length}
             </p>
+            {finishError && <p className="page__hint">{finishError}</p>}
 
-            {/* Панель сверху: таймер + прогресс */}
             <div className="test-panel">
-                <div className="test-panel__timer">
-                    ⏱ Время: {formatTime(secondsLeft)}
-                </div>
+                <div className="test-panel__timer">⏱ Время: {formatTime(secondsLeft)}</div>
                 <div className="test-panel__progress">
                     <div className="test-panel__progress-bar">
-                        <div
-                            className="test-panel__progress-fill"
-                            style={{ width: `${progressPercent}%` }}
-                        />
+                        <div className="test-panel__progress-fill" style={{ width: `${progressPercent}%` }} />
                     </div>
-                    <span className="test-panel__progress-text">
-            {progressPercent}%
-          </span>
+                    <span className="test-panel__progress-text">{progressPercent}%</span>
                 </div>
             </div>
 
             {!isFinished ? (
                 <>
-                    {/* ВОПРОС */}
                     <div className="test-question">
-                        <div className="test-question__text">
-                            {currentQuestion.text}
-                        </div>
+                        {currentQuestion.passageText && (
+                            <div className="test-question__passage">{currentQuestion.passageText}</div>
+                        )}
+
+                        <div className="test-question__text">{currentQuestion.text}</div>
 
                         <div className="test-question__options">
-                            {currentQuestion.options.map((opt, index) => (
+                            {currentQuestion.options.map((option) => (
                                 <label
-                                    key={index}
+                                    key={option.id}
                                     className={
-                                        "test-option" +
-                                        (answers[currentQuestion.id] === index
-                                            ? " test-option--selected"
-                                            : "")
+                                        'test-option' +
+                                        (answers[currentQuestion.id] === option.id ? ' test-option--selected' : '')
                                     }
                                 >
                                     <input
                                         type="radio"
                                         name={`q-${currentQuestion.id}`}
-                                        checked={answers[currentQuestion.id] === index}
-                                        onChange={() => handleSelectOption(index)}
+                                        checked={answers[currentQuestion.id] === option.id}
+                                        onChange={() => handleSelectOption(option.id)}
                                     />
-                                    <span className="test-option__text">{opt}</span>
+                                    <span className="test-option__text">{option.text}</span>
                                 </label>
                             ))}
                         </div>
                     </div>
 
-                    {/* КНОПКИ */}
                     <div className="test-actions">
-                        <button
-                            className="btn-secondary"
-                            onClick={handleExit}
-                            type="button"
-                        >
+                        <button className="btn-secondary" onClick={handleExit} type="button">
                             Выйти
                         </button>
 
@@ -200,28 +276,24 @@ const TestRunner = () => {
                                 Назад
                             </button>
 
-                            <button
-                                className="btn-primary"
-                                onClick={handleNext}
-                                type="button"
-                            >
-                                {currentIndex === test.questions.length - 1
-                                    ? "Завершить"
-                                    : "Далее"}
+                            <button className="btn-primary" onClick={handleNext} type="button">
+                                {currentIndex === test.questions.length - 1 ? 'Завершить' : 'Далее'}
                             </button>
                         </div>
                     </div>
                 </>
             ) : (
-                // Блок результатов после завершения
                 <div className="test-result">
                     <h2 className="test-result__title">Тест завершён</h2>
-                    <p className="test-result__text">
-                        {(() => {
-                            const { correct, percent } = calculateScore();
-                            return `Ваш результат: ${percent}% (${correct} из ${test.questions.length} правильных ответов).`;
-                        })()}
-                    </p>
+                    {resultSummary ? (
+                        <p className="test-result__text">
+                            Результат: {resultSummary.score_percent}% · Уровень подготовки: {resultSummary.preparation_level || '—'}.
+                        </p>
+                    ) : (
+                        <p className="test-result__text">
+                            Ответы сохранены в демо-режиме. Для реального подсчёта завершите попытку через backend.
+                        </p>
+                    )}
 
                     <button className="btn-primary" onClick={handleExit} type="button">
                         Вернуться к списку тестов
