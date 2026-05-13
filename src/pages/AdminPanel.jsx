@@ -20,6 +20,7 @@ import {
     deleteQuestion,
     updateQuestion,
     deleteAssignment,
+    deleteGroup,
 } from '../api/admin';
 
 const AdminPanel = () => {
@@ -312,7 +313,7 @@ const AdminPanel = () => {
                         <button className="btn-secondary" type="submit">Создать группу</button>
                     </form>
 
-                    <div className="admin-table-wrapper"><table className="table admin-table"><thead><tr><th>Название</th><th>Код</th></tr></thead><tbody>{groups.map((g)=><tr key={g.id}><td>{g.name}</td><td>{g.code}</td></tr>)}</tbody></table></div>
+                    <div className="admin-table-wrapper"><table className="table admin-table"><thead><tr><th>Название</th><th>Код</th><th>Действия</th></tr></thead><tbody>{groups.map((g)=><tr key={g.id}><td>{g.name}</td><td>{g.code}</td><td><button className="btn-secondary" type="button" onClick={async () => { if (!window.confirm('Вы уверены, что хотите удалить группу?')) return; try { await deleteGroup(token, g.id); setAssignmentGroupIds((prev) => prev.filter((id) => id !== g.id)); setNewUser((prev) => ({ ...prev, student_group_id: String(prev.student_group_id) === String(g.id) ? "" : prev.student_group_id })); showSuccess('Группа удалена.'); await loadBaseData(); } catch (err) { showError(err); } }}>Удалить</button></td></tr>)}</tbody></table></div>
                 </div>}
 
                 <div className="admin-card">

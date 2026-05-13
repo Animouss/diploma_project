@@ -10,6 +10,7 @@ export const deleteUser = (token, id) => request(`/admin/users/${id}/`, { method
 export const getGroups = (token) => request('/admin/groups/', { headers: authHeaders(token) });
 export const createGroup = (token, payload) => request('/admin/groups/', { method: 'POST', headers: authHeaders(token), body: JSON.stringify(payload) });
 export const updateGroup = (token, id, payload) => request(`/admin/groups/${id}/`, { method: 'PATCH', headers: authHeaders(token), body: JSON.stringify(payload) });
+export const deleteGroup = (token, id) => request(`/admin/groups/${id}/`, { method: 'DELETE', headers: authHeaders(token) });
 
 export const getAdminTests = (token) => request('/admin/tests/', { headers: authHeaders(token) });
 export const createAdminTest = (token, payload) => request('/admin/tests/', { method: 'POST', headers: authHeaders(token), body: JSON.stringify(payload) });
