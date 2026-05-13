@@ -88,13 +88,14 @@ class AttemptSummarySerializer(serializers.ModelSerializer):
             return None
         return {
             'score_percent': obj.result.score_percent,
-            'level_result': obj.result.level_result,
+            'preparation_level': get_preparation_level(obj.result.score_percent),
             'passed': obj.result.passed,
         }
 
 
 class StudentResultSerializer(serializers.ModelSerializer):
     test_title = serializers.CharField(source='attempt.test.title', read_only=True)
+    test_comment = serializers.CharField(source='attempt.test.comment', read_only=True, allow_blank=True)
     user_id = serializers.IntegerField(source='attempt.user_id', read_only=True)
     username = serializers.CharField(source='attempt.user.username', read_only=True)
     user_full_name = serializers.CharField(source='attempt.user.full_name', read_only=True)
@@ -109,6 +110,7 @@ class StudentResultSerializer(serializers.ModelSerializer):
             'id',
             'attempt_id',
             'test_title',
+            'test_comment',
             'user_id',
             'username',
             'user_full_name',
@@ -214,6 +216,7 @@ class ResultQuestionReviewSerializer(serializers.Serializer):
 
 class ResultDetailSerializer(serializers.ModelSerializer):
     test_title = serializers.CharField(source='attempt.test.title', read_only=True)
+    test_comment = serializers.CharField(source='attempt.test.comment', read_only=True, allow_blank=True)
     student_name = serializers.CharField(source='attempt.user.full_name', read_only=True)
     questions = serializers.SerializerMethodField()
     preparation_level = serializers.SerializerMethodField()
@@ -223,6 +226,7 @@ class ResultDetailSerializer(serializers.ModelSerializer):
         fields = (
             'id',
             'test_title',
+            'test_comment',
             'student_name',
             'score_percent',
             'level_result',

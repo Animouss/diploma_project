@@ -160,7 +160,7 @@ const Results = () => {
                     {!isStudent && <th>Студент</th>}
                     <th>Тест</th>
                     <th>Результат</th>
-                    <th>Уровень</th>
+                    <th>Комментарий</th>
                     <th>Уровень подготовки</th>
                     <th></th>
                 </tr>
@@ -172,7 +172,7 @@ const Results = () => {
                         {!isStudent && <td>{row.user_full_name || row.username || '—'}</td>}
                         <td>{row.test_title}</td>
                         <td>{row.score_percent}%</td>
-                        <td>{row.level_result}</td>
+                        <td title={row.test_comment || '—'} className="test-comment-cell">{row.test_comment || '—'}</td>
                         <td>{row.preparation_level || '—'}</td>
                         <td>
                             <button className="btn-secondary" type="button" onClick={() => openResultDetail(row.id)}>
